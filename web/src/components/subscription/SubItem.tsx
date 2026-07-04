@@ -37,6 +37,9 @@ export function SubItem({
                     total: ev.payload?.total as number,
                     status: ev.payload?.status as string,
                 });
+                if (ev.payload?.status === "fail" && ev.payload?.error) {
+                    toast.danger(sub.name, { description: ev.payload.error as string });
+                }
                 break;
             case "done":
                 refetchSub().then(({ data: updated }) => {
