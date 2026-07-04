@@ -4,10 +4,13 @@ import (
 	"net"
 	"net/http"
 
+	"bestsub/internal/mihomo"
+	"bestsub/internal/model"
 	"bestsub/internal/server/middleware"
 	"bestsub/internal/server/resp"
 	"bestsub/internal/server/router"
 	"bestsub/internal/store"
+	"bestsub/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -88,5 +91,11 @@ func settingSet(c *gin.Context) {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
 		return
 	}
+
+	// DNS 配置变更时立即生效
+	if req.Key == model.SettingDNSDefault || req.Key == model.SettingDNSMain {
+		mihomo.UpdateDNSConfig(utils.SplitComma(store.SettingGet(model.SettingDNSDefault)), utils.SplitComma(store.SettingGet(model.SettingDNSMain)))
+	}
+
 	resp.Success(c, nil)
 }

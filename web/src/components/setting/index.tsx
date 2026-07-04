@@ -3,6 +3,7 @@ import { PageLayout } from "../PageLayout";
 import { useSettingList, useSetSetting } from "../../api/settings";
 import { GeneralSetting } from "./GeneralSetting";
 import { AppearanceSetting } from "./AppearanceSetting";
+import { DnsSetting } from "./DnsSetting";
 
 export default function Setting() {
   const { data, isLoading } = useSettingList();
@@ -28,6 +29,7 @@ export default function Setting() {
     <PageLayout title="设置">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
         <GeneralSetting val={val} set={set} />
+        <DnsSetting val={val} set={set} />
         <AppearanceSetting val={val} set={set} />
       </div>
     </PageLayout>

@@ -8,10 +8,13 @@ import (
 	"syscall"
 
 	"bestsub/internal/conf"
+	"bestsub/internal/mihomo"
+	"bestsub/internal/model"
 	_ "bestsub/internal/server/handlers"
 	"bestsub/internal/server/middleware"
 	"bestsub/internal/server/router"
 	"bestsub/internal/store"
+	"bestsub/internal/utils"
 
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
@@ -58,6 +61,13 @@ var startCmd = &cobra.Command{
 		if err := store.InitStore(); err != nil {
 			log.Errorf("user init error: %v", err)
 			return
+		}
+
+		// 从数据库加载 DNS 配置并生效
+		defStr := store.SettingGet(model.SettingDNSDefault)
+		mainStr := store.SettingGet(model.SettingDNSMain)
+		if defStr != "" || mainStr != "" {
+			mihomo.UpdateDNSConfig(utils.SplitComma(defStr), utils.SplitComma(mainStr))
 		}
 
 		addr := fmt.Sprintf("%s:%d", conf.AppConfig.Server.Host, conf.AppConfig.Server.Port)

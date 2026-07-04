@@ -7,6 +7,9 @@ const (
 	SettingSubConvertUrl   = "sub_convert_url"   // 订阅转换地址
 	SettingSubConvertProxy = "sub_convert_proxy" // 是否使用代理访问订阅转换
 	SettingBindInterface   = "bind_interface"    // 网卡绑定
+	// DNS 设置
+	SettingDNSDefault = "dns_default" // 默认 DNS（IP 类型，逗号分隔）
+	SettingDNSMain    = "dns_main"    // 主 DNS（DoH 类型，逗号分隔）
 	// 测试设置
 	SettingHealthCheckURL = "health_check_url" // 测活链接
 	SettingSpeedTestURL   = "speed_test_url"   // 测速连接
