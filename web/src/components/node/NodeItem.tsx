@@ -1,5 +1,5 @@
-import { Pencil, TrashBin, Server, Clock, Thunderbolt, Globe } from "@gravity-ui/icons";
-import { formatBytes, formatRelativeTime } from "../../lib/format";
+import { Pencil, TrashBin, Server, Thunderbolt, Globe } from "@gravity-ui/icons";
+import { formatBytes } from "../../lib/format";
 import type { Node } from "../../api/node";
 
 // country_code 为 ISO 3166-1 alpha-2，转成国旗 emoji（两个字母映射到区域指示符）
@@ -36,10 +36,6 @@ export function NodeItem({
             </div>
 
             <div className="grid grid-cols-2 gap-2 flex-1">
-                <div className="bg-surface-secondary rounded-xl p-3 flex flex-col gap-2">
-                    <div className="flex items-center gap-1 text-accent"><Clock className="size-4" /><span className="text-xs font-medium text-muted">测试时间</span></div>
-                    <div className="flex-1 flex items-end justify-end text-xl text-foreground leading-none">{formatRelativeTime(node.tested_at)}</div>
-                </div>
                 <div className="bg-surface-secondary rounded-xl p-3 flex flex-col gap-2">
                     <div className="flex items-center gap-1 text-accent"><Thunderbolt className="size-4" /><span className="text-xs font-medium text-muted">延迟</span></div>
                     <div className="flex-1 flex items-end justify-end text-xl text-foreground leading-none">{delayLabel}</div>

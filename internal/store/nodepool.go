@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/cespare/xxhash/v2"
 	"gopkg.in/yaml.v3"
@@ -107,18 +106,6 @@ func NodePoolUpdateCountryCode(subID string, fingerprint uint64, countryCode str
 
 	if n := nodePool[subID][fingerprint]; n != nil {
 		n.Info.CountryCode = countryCode
-		return true
-	}
-	return false
-}
-
-// NodePoolUpdateTestedAt 更新节点最近测试时间。
-func NodePoolUpdateTestedAt(subID string, fingerprint uint64, testedAt time.Time) bool {
-	nodePoolLock.Lock()
-	defer nodePoolLock.Unlock()
-
-	if n := nodePool[subID][fingerprint]; n != nil {
-		n.Info.TestedAt = testedAt
 		return true
 	}
 	return false

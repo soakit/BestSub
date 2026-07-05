@@ -14,7 +14,6 @@ export type NodeInfo = {
     download_speed: number;
     upload_speed: number;
     country_code: string;
-    tested_at: string;
 };
 
 export type Node = {

@@ -21,10 +21,9 @@ type NodeConfig struct {
 }
 
 type NodeInfo struct {
-	Delay         uint16    `gorm:"column:delay;default:0" json:"delay"`                   // 延迟，单位毫秒；0 表示未知或未测试
-	DownloadSpeed uint64    `gorm:"column:download_speed;default:0" json:"download_speed"` // 下载速度，单位 bytes/s；0 表示未知或未测试
-	CountryCode   string    `gorm:"column:country_code;type:char(2)" json:"country_code"`  // 落地国家，ISO 3166-1 alpha-2 两位字母代码
-	TestedAt      time.Time `gorm:"column:tested_at;default:null" json:"tested_at"`        // 最近一次测试时间
+	Delay         uint16 `gorm:"column:delay;default:0" json:"delay"`                   // 延迟，单位毫秒；0 表示未知或未测试
+	DownloadSpeed uint64 `gorm:"column:download_speed;default:0" json:"download_speed"` // 下载速度，单位 bytes/s；0 表示未知或未测试
+	CountryCode   string `gorm:"column:country_code;type:char(2)" json:"country_code"`  // 落地国家，ISO 3166-1 alpha-2 两位字母代码
 }
 
 func (n *Node) BeforeCreate(tx *gorm.DB) error {
