@@ -3,7 +3,7 @@ package store
 import (
 	"fmt"
 
-	"bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/model"
 )
 
 var settingCache = make(map[string]string)

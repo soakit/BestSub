@@ -7,9 +7,9 @@ import (
 	"io"
 	"net/http"
 
-	"bestsub/internal/model"
-	"bestsub/internal/rhttp"
-	"bestsub/internal/store"
+	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/rhttp"
+	"github.com/bestruirui/bestsub/internal/store"
 )
 
 // Convert 通过转换服务将订阅内容转为目标格式

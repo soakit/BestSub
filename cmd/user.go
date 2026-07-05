@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"bestsub/internal/conf"
-	"bestsub/internal/store"
+	"github.com/bestruirui/bestsub/internal/conf"
+	"github.com/bestruirui/bestsub/internal/store"
 
 	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"

@@ -8,7 +8,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"gopkg.in/yaml.v3"
 
-	"bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/model"
 )
 
 // nodePool: map[subID]map[fingerprint]*nodePoolNode

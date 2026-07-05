@@ -3,8 +3,8 @@ package store
 import (
 	"fmt"
 
-	"bestsub/internal/model"
-	"bestsub/internal/utils/cache"
+	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/utils/cache"
 )
 
 var tagCache = cache.New[uint, model.Tag](4)

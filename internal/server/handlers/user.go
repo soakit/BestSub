@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"time"
 
-	"bestsub/internal/model"
-	"bestsub/internal/server/middleware"
-	"bestsub/internal/server/resp"
-	"bestsub/internal/server/router"
-	"bestsub/internal/store"
+	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/server/middleware"
+	"github.com/bestruirui/bestsub/internal/server/resp"
+	"github.com/bestruirui/bestsub/internal/server/router"
+	"github.com/bestruirui/bestsub/internal/store"
 
 	"github.com/gin-gonic/gin"
 )

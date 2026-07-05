@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"bestsub/internal/conf"
-	"bestsub/internal/server/resp"
-	"bestsub/internal/store"
+	"github.com/bestruirui/bestsub/internal/conf"
+	"github.com/bestruirui/bestsub/internal/server/resp"
+	"github.com/bestruirui/bestsub/internal/store"
 
 	"github.com/gin-gonic/gin"
 )

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/model"
 
 	"github.com/charmbracelet/log"
 	"golang.org/x/crypto/bcrypt"

@@ -7,14 +7,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	"bestsub/internal/conf"
-	"bestsub/internal/mihomo"
-	"bestsub/internal/model"
-	_ "bestsub/internal/server/handlers"
-	"bestsub/internal/server/middleware"
-	"bestsub/internal/server/router"
-	"bestsub/internal/store"
-	"bestsub/internal/utils"
+	"github.com/bestruirui/bestsub/internal/conf"
+	"github.com/bestruirui/bestsub/internal/model"
+	_ "github.com/bestruirui/bestsub/internal/server/handlers"
+	"github.com/bestruirui/bestsub/internal/server/middleware"
+	"github.com/bestruirui/bestsub/internal/server/router"
+	"github.com/bestruirui/bestsub/internal/store"
+	"github.com/bestruirui/bestsub/internal/utils"
+	"github.com/bestruirui/bestsub/pkg/mihomo"
+	"github.com/bestruirui/bestsub/static"
 
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
@@ -44,7 +45,7 @@ var startCmd = &cobra.Command{
 
 		r.Use(middleware.Cors())
 		r.Use(middleware.Logger())
-		r.Use(middleware.StaticLocal("/", "static"))
+		r.Use(middleware.StaticEmbed("/", static.StaticFS))
 
 		router.RegisterAll(r)
 

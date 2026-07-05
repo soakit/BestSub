@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"bestsub/internal/model"
 )
 
 type Request struct {
@@ -47,18 +45,6 @@ func Run(ctx context.Context, req Request) (NodeInfoPatch, error) {
 		return NodeInfoPatch{}, err
 	}
 	return patch, err
-}
-
-func (p NodeInfoPatch) Apply(info *model.NodeInfo) {
-	if p.Delay != nil {
-		info.Delay = *p.Delay
-	}
-	if p.DownloadSpeed != nil {
-		info.DownloadSpeed = *p.DownloadSpeed
-	}
-	if p.CountryCode != nil {
-		info.CountryCode = *p.CountryCode
-	}
 }
 
 func (p *HTTPParams) withDefaults(timeoutMS int) {

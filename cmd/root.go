@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"bestsub/internal/conf"
+	"github.com/bestruirui/bestsub/internal/conf"
 
 	"github.com/spf13/cobra"
 )

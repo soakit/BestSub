@@ -1,4 +1,4 @@
-module bestsub
+module github.com/bestruirui/bestsub
 
 go 1.25.0
 

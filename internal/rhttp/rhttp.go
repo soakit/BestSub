@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"time"
 
-	"bestsub/internal/mihomo"
-	"bestsub/internal/model"
-	"bestsub/internal/store"
+	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/store"
+	"github.com/bestruirui/bestsub/pkg/mihomo"
 )
 
 // New 返回一个 HTTP 客户端。proxy 参数控制代理行为：

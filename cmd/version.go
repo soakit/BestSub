@@ -5,7 +5,7 @@ import (
 	"os"
 	"runtime"
 
-	"bestsub/internal/conf"
+	"github.com/bestruirui/bestsub/internal/conf"
 
 	"github.com/spf13/cobra"
 )

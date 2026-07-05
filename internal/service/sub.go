@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"bestsub/internal/model"
-	"bestsub/internal/rhttp"
-	"bestsub/internal/store"
+	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/rhttp"
+	"github.com/bestruirui/bestsub/internal/store"
 )
 
 var refreshMu sync.Map

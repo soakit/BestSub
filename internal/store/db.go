@@ -1,8 +1,8 @@
 package store
 
 import (
-	"bestsub/internal/conf"
-	"bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/conf"
+	"github.com/bestruirui/bestsub/internal/model"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
