@@ -1,0 +1,98 @@
+import { useState } from "react";
+import { AlertDialog, Button, Modal, Spinner, useOverlayState } from "@heroui/react";
+import { PageLayout } from "../PageLayout";
+import { Plus } from "@gravity-ui/icons";
+import { type Task, useDeleteTask, useTasks } from "../../api/task";
+import { TaskForm } from "./TaskForm";
+import { TaskItem } from "./TaskItem";
+
+export default function TaskPage() {
+    const { data: tasks, isLoading } = useTasks();
+    const deleteTask = useDeleteTask();
+    const editorState = useOverlayState();
+    const [editing, setEditing] = useState<Task | null>(null);
+    const [editorKey, setEditorKey] = useState(0);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+
+    return (
+        <PageLayout
+            title="任务"
+            actions={
+                <Button isIconOnly variant="ghost" onPress={() => { setEditing(null); setEditorKey((n) => n + 1); editorState.open(); }} className="rounded-xl">
+                    <Plus className="size-4 text-foreground/50" />
+                </Button>
+            }
+        >
+            <>
+                {isLoading ? (
+                    <div className="flex flex-1 items-center justify-center">
+                        <Spinner size="sm" />
+                    </div>
+                ) : tasks?.length === 0 ? (
+                    <div className="flex flex-1 items-center justify-center text-sm text-foreground/60">暂无任务</div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                        {tasks!.map((task) => (
+                            <TaskItem
+                                key={task.id}
+                                task={task}
+                                onEdit={(t) => { setEditing(t); setEditorKey((n) => n + 1); editorState.open(); }}
+                                onDelete={(t) => setDeletingId(t.id)}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                <Modal state={editorState} data-scrollbar="none">
+                    <Modal.Backdrop variant="blur">
+                        <Modal.Container>
+                            <Modal.Dialog>
+                                <Modal.CloseTrigger />
+                                <Modal.Header>
+                                    <Modal.Heading>{editing ? "编辑任务" : "添加任务"}</Modal.Heading>
+                                </Modal.Header>
+                                <Modal.Body>
+                                    <TaskForm
+                                        key={`${editing?.id ?? "create"}-${editorKey}`}
+                                        task={editing ?? undefined}
+                                        tasks={tasks ?? []}
+                                        onClose={editorState.close}
+                                    />
+                                </Modal.Body>
+                                <Modal.Footer>
+                                    <Button variant="ghost" slot="close">取消</Button>
+                                    <Button type="submit" form="task-form" variant="primary">{editing ? "保存" : "添加"}</Button>
+                                </Modal.Footer>
+                            </Modal.Dialog>
+                        </Modal.Container>
+                    </Modal.Backdrop>
+                </Modal>
+
+                <AlertDialog.Backdrop isOpen={!!deletingId} onOpenChange={(open) => { if (!open) setDeletingId(null) }} variant="blur">
+                    <AlertDialog.Container size="xs">
+                        <AlertDialog.Dialog>
+                            <AlertDialog.CloseTrigger />
+                            <AlertDialog.Header>
+                                <AlertDialog.Icon status="danger" />
+                                <AlertDialog.Heading>确定要删除吗？</AlertDialog.Heading>
+                            </AlertDialog.Header>
+                            <AlertDialog.Footer>
+                                <Button slot="close" variant="tertiary">取消</Button>
+                                <Button
+                                    slot="close"
+                                    variant="danger"
+                                    onPress={() => {
+                                        if (deletingId) deleteTask.mutate(deletingId);
+                                        setDeletingId(null);
+                                    }}
+                                >
+                                    删除
+                                </Button>
+                            </AlertDialog.Footer>
+                        </AlertDialog.Dialog>
+                    </AlertDialog.Container>
+                </AlertDialog.Backdrop>
+            </>
+        </PageLayout>
+    );
+}

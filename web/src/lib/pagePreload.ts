@@ -3,7 +3,7 @@ import type { Page } from "../store";
 export const pageImports = {
   subscription: () => import("../components/subscription"),
   node: () => import("../components/node"),
-  testing: () => import("../components/Testing"),
+  task: () => import("../components/task"),
   sharing: () => import("../components/Sharing"),
   storage: () => import("../components/Storage"),
   setting: () => import("../components/setting"),

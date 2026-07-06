@@ -3,14 +3,14 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Signal, Server, Pulse, Link as LinkIcon, Cloud, Gear } from '@gravity-ui/icons';
 
-export type Page = 'subscription' | 'node' | 'testing' | 'sharing' | 'storage' | 'setting';
+export type Page = 'subscription' | 'node' | 'task' | 'sharing' | 'storage' | 'setting';
 
 export type NavItem = { id: Page; label: string; icon: ElementType };
 
 export const MAIN_NAV_ITEMS: NavItem[] = [
   { id: 'subscription', label: '订阅', icon: Signal },
   { id: 'node', label: '节点', icon: Server },
-  { id: 'testing', label: '检测', icon: Pulse },
+  { id: 'task', label: '任务', icon: Pulse },
   { id: 'sharing', label: '分享', icon: LinkIcon },
   { id: 'storage', label: '储存', icon: Cloud },
 ];

@@ -10,7 +10,7 @@ import Login from "./components/Login";
 
 const Subscription = lazy(pageImports.subscription);
 const Node = lazy(pageImports.node);
-const Testing = lazy(pageImports.testing);
+const Task = lazy(pageImports.task);
 const Sharing = lazy(pageImports.sharing);
 const Storage = lazy(pageImports.storage);
 const Setting = lazy(pageImports.setting);
@@ -67,7 +67,7 @@ export default function App() {
         <BootLoadingGate>
           {visiblePage === 'subscription' && <Subscription />}
           {visiblePage === 'node' && <Node />}
-          {visiblePage === 'testing' && <Testing />}
+          {visiblePage === 'task' && <Task />}
           {visiblePage === 'sharing' && <Sharing />}
           {visiblePage === 'storage' && <Storage />}
           {visiblePage === 'setting' && <Setting />}

@@ -27,6 +27,8 @@ func InitDB() error {
 		new(model.Subscription),
 		new(model.Node),
 		new(model.Tag),
+		new(model.Storage),
+		new(model.Task),
 		new(model.Setting),
 	)
 }
@@ -45,6 +47,12 @@ func InitStore() error {
 		return err
 	}
 	if err := initTag(); err != nil {
+		return err
+	}
+	if err := initStorage(); err != nil {
+		return err
+	}
+	if err := initTask(); err != nil {
 		return err
 	}
 	return nil
