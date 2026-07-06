@@ -1,12 +1,12 @@
 import type { Page } from "../store";
 
 export const pageImports = {
-  subscriptions: () => import("../components/Subscriptions"),
-  nodes: () => import("../components/Nodes"),
+  subscription: () => import("../components/subscription"),
+  node: () => import("../components/node"),
   testing: () => import("../components/Testing"),
   sharing: () => import("../components/Sharing"),
   storage: () => import("../components/Storage"),
-  settings: () => import("../components/Settings"),
+  setting: () => import("../components/setting"),
 };
 
 const preloadedPages = new Set<Page>();

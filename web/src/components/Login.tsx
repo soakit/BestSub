@@ -53,11 +53,11 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
           </TextField>
 
           <Checkbox isSelected={trust} onChange={setTrust}>
-            <Checkbox.Control>
-              <Checkbox.Indicator />
-            </Checkbox.Control>
             <Checkbox.Content>
-              <Label className="font-medium text-foreground">信任设备</Label>
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+              信任设备
             </Checkbox.Content>
           </Checkbox>
 

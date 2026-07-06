@@ -4,9 +4,10 @@ import (
 	"bestsub/internal/conf"
 	"bestsub/internal/model"
 
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+
+	"github.com/glebarez/sqlite"
 )
 
 var db *gorm.DB
@@ -17,11 +18,36 @@ func InitDB() error {
 	if conf.IsDebug() {
 		gormConfig.Logger = logger.Default.LogMode(logger.Info)
 	}
-	db, err = gorm.Open(sqlite.Open(conf.AppConfig.Database.Path+"?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=ON"), &gormConfig)
+	db, err = gorm.Open(sqlite.Open(conf.AppConfig.Database.Path), &gormConfig)
 	if err != nil {
 		return err
 	}
-	return db.AutoMigrate(new(model.User))
+	return db.AutoMigrate(
+		new(model.User),
+		new(model.Subscription),
+		new(model.Node),
+		new(model.Tag),
+		new(model.Setting),
+	)
+}
+
+func InitStore() error {
+	if err := initSetting(); err != nil {
+		return err
+	}
+	if err := UserInit(); err != nil {
+		return err
+	}
+	if err := initSubscription(); err != nil {
+		return err
+	}
+	if err := initNode(); err != nil {
+		return err
+	}
+	if err := initTag(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func Close() error {

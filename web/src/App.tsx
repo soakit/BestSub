@@ -8,12 +8,12 @@ import { useAppStore } from "./store";
 import { AppShell } from "./components/AppShell";
 import Login from "./components/Login";
 
-const Subscriptions = lazy(pageImports.subscriptions);
-const Nodes = lazy(pageImports.nodes);
+const Subscription = lazy(pageImports.subscription);
+const Node = lazy(pageImports.node);
 const Testing = lazy(pageImports.testing);
 const Sharing = lazy(pageImports.sharing);
 const Storage = lazy(pageImports.storage);
-const Settings = lazy(pageImports.settings);
+const Setting = lazy(pageImports.setting);
 
 // 放在 Suspense 内部，只有当前 lazy 页面提交后才会隐藏 HTML 启动画面。
 function BootLoadingGate({ children }: { children: ReactNode }) {
@@ -65,12 +65,12 @@ export default function App() {
     <AppShell>
       <Suspense fallback={null}>
         <BootLoadingGate>
-          {visiblePage === 'subscriptions' && <Subscriptions />}
-          {visiblePage === 'nodes' && <Nodes />}
+          {visiblePage === 'subscription' && <Subscription />}
+          {visiblePage === 'node' && <Node />}
           {visiblePage === 'testing' && <Testing />}
           {visiblePage === 'sharing' && <Sharing />}
           {visiblePage === 'storage' && <Storage />}
-          {visiblePage === 'settings' && <Settings />}
+          {visiblePage === 'setting' && <Setting />}
         </BootLoadingGate>
       </Suspense>
     </AppShell>

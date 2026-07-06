@@ -1,8 +1,9 @@
-import { startTransition, type ReactNode } from "react";
+import { startTransition, useEffect, type ReactNode } from "react";
 import { clsx } from "clsx";
 import { preloadPage } from "../lib/pagePreload";
 import { useAppStore, type Page, type NavItem, MAIN_NAV_ITEMS, SETTINGS_NAV_ITEM, NAV_ITEMS } from "../store";
 import { Logo } from "./Logo";
+import { useSettingList } from "../api/settings";
 
 function selectPage(page: Page, setCurrentPage: (page: Page) => void) {
   preloadPage(page);
@@ -120,10 +121,28 @@ function MobileDock() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const { data: settings } = useSettingList();
+
+  useEffect(() => {
+    if (!settings) return;
+    const themeAuto = settings.find((s) => s.key === "theme_auto")?.value;
+    const theme = settings.find((s) => s.key === "theme")?.value;
+
+    const root = document.documentElement;
+    root.classList.remove("light", "dark");
+
+    if (themeAuto !== "0") {
+      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      root.classList.add(isDark ? "dark" : "light");
+    } else {
+      root.classList.add(theme === "dark" ? "dark" : "light");
+    }
+  }, [settings]);
+
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-background font-sans text-foreground">
+    <div className="flex h-dvh overflow-hidden bg-background font-sans text-foreground">
       <DesktopSidebar />
-      <main className="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-6 md:pl-3 max-md:pt-4">
+      <main className="flex min-h-0 flex-1 flex-col pt-4 px-4">
         {children}
       </main>
       <MobileDock />

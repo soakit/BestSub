@@ -3,54 +3,41 @@ package store
 import (
 	"errors"
 	"fmt"
-	"sync/atomic"
-	"time"
 
 	"bestsub/internal/model"
 
 	"github.com/charmbracelet/log"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
-var (
-	userCache model.User
-	// 用户资料变更时推进版本号，用于让旧 cookie session 失效。
-	userAuthVersion atomic.Int64
-)
+var userCache model.User
 
 func UserInit() error {
-	if err := db.First(&userCache).Error; err == nil {
-		userAuthVersion.Store(time.Now().UnixNano())
-		return nil
+	if err := db.First(&userCache).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to query user: %w", err)
+		}
+		userCache.Username = "admin"
+		userCache.Password = hashPassword("admin")
+		if err := db.Create(&userCache).Error; err != nil {
+			return fmt.Errorf("failed to create user: %w", err)
+		}
+		log.Infof("initial user: admin, password: admin")
 	}
-	userCache.Username = "admin"
-	userCache.Password = "admin"
-	if err := userCache.HashPassword(); err != nil {
-		return err
-	}
-	if err := db.Create(&userCache).Error; err != nil {
-		return err
-	}
-	userAuthVersion.Store(time.Now().UnixNano())
-	log.Infof("initial user: admin,password: admin")
 	return nil
 }
 
 func UserChangePassword(oldPassword, newPassword string) error {
-	if err := userCache.ComparePassword(oldPassword); err != nil {
+	if err := comparePassword(userCache.Password, oldPassword); err != nil {
 		return fmt.Errorf("incorrect old password: %w", err)
 	}
 
-	userCache.Password = newPassword
-	if err := userCache.HashPassword(); err != nil {
-		return fmt.Errorf("failed to hash new password: %w", err)
-	}
-
-	if err := db.Model(&userCache).Update("password", userCache.Password).Error; err != nil {
+	hashed := hashPassword(newPassword)
+	if err := db.Model(&userCache).Updates(model.UserUpdate{Password: hashed}).Error; err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
-
-	userAuthVersion.Store(time.Now().UnixNano())
+	userCache.Password = hashed
 	return nil
 }
 
@@ -59,40 +46,34 @@ func UserChangeUsername(newUsername string) error {
 		return fmt.Errorf("new username is the same as the old username")
 	}
 	userCache.Username = newUsername
-	if err := db.Model(&userCache).Update("username", userCache.Username).Error; err != nil {
+	if err := db.Model(&userCache).Updates(model.UserUpdate{Username: userCache.Username}).Error; err != nil {
 		return fmt.Errorf("failed to update username: %w", err)
 	}
-	userAuthVersion.Store(time.Now().UnixNano())
 	return nil
 }
 
 func UserSet(username, password string) error {
-	userCache.Username = username
-	userCache.Password = password
-	if err := userCache.HashPassword(); err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
-	}
+	hashed := hashPassword(password)
 
 	var user model.User
 	if err := db.First(&user).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("failed to get user: %w", err)
 		}
+		userCache.Username = username
+		userCache.Password = hashed
 		if err := db.Create(&userCache).Error; err != nil {
 			return fmt.Errorf("failed to create user: %w", err)
 		}
-		userAuthVersion.Store(time.Now().UnixNano())
 		return nil
 	}
 
 	userCache.ID = user.ID
-	if err := db.Model(&user).Updates(map[string]any{
-		"username": userCache.Username,
-		"password": userCache.Password,
-	}).Error; err != nil {
+	userCache.Username = username
+	userCache.Password = hashed
+	if err := db.Model(&user).Updates(userCache).Error; err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
 	}
-	userAuthVersion.Store(time.Now().UnixNano())
 	return nil
 }
 
@@ -100,12 +81,21 @@ func UserVerify(username, password string) error {
 	if username != userCache.Username {
 		return fmt.Errorf("incorrect username")
 	}
-	if err := userCache.ComparePassword(password); err != nil {
+	if err := comparePassword(userCache.Password, password); err != nil {
 		return fmt.Errorf("incorrect password")
 	}
 	return nil
 }
 
-func UserAuthVersion() int64 {
-	return userAuthVersion.Load()
+func UserAuthSecret() string {
+	return userCache.Username + ":" + userCache.Password
+}
+
+func hashPassword(plain string) string {
+	hashed, _ := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.DefaultCost)
+	return string(hashed)
+}
+
+func comparePassword(hashed, plain string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain))
 }

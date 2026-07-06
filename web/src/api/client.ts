@@ -31,7 +31,7 @@ export class ApiError extends Error {
 export const apiUnauthorizedEvent = "api:unauthorized";
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-	const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ""}${path}`, {
+	const response = await fetch(path, {
 		method: options.method || "GET",
 		headers: options.body === undefined ? undefined : { "content-type": "application/json" },
 		body: options.body === undefined ? undefined : JSON.stringify(options.body),

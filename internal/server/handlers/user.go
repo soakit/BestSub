@@ -10,7 +10,6 @@ import (
 	"bestsub/internal/server/router"
 	"bestsub/internal/store"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -54,19 +53,8 @@ func login(c *gin.Context) {
 	if user.Trust {
 		maxAge = int((30 * 24 * time.Hour).Seconds())
 	}
-	session := sessions.Default(c)
-	session.Set("authenticated", true)
-	session.Set("auth_version", store.UserAuthVersion())
-	session.Options(sessions.Options{
-		Path:     "/",
-		MaxAge:   maxAge,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
-	if err := session.Save(); err != nil {
-		resp.Error(c, http.StatusInternalServerError, resp.ErrInternalServer)
-		return
-	}
+	token := middleware.SignAuthSecret(store.UserAuthSecret(), maxAge)
+	c.SetCookie("auth", token, maxAge, "/", "", false, true)
 	resp.Success(c, "login successfully")
 }
 
@@ -75,18 +63,7 @@ func check(c *gin.Context) {
 }
 
 func logout(c *gin.Context) {
-	session := sessions.Default(c)
-	session.Clear()
-	session.Options(sessions.Options{
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
-	if err := session.Save(); err != nil {
-		resp.Error(c, http.StatusInternalServerError, resp.ErrInternalServer)
-		return
-	}
+	c.SetCookie("auth", "", -1, "/", "", false, true)
 	resp.Success(c, "logout successfully")
 }
 
@@ -100,18 +77,6 @@ func changePassword(c *gin.Context) {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
 		return
 	}
-	session := sessions.Default(c)
-	session.Clear()
-	session.Options(sessions.Options{
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
-	if err := session.Save(); err != nil {
-		resp.Error(c, http.StatusInternalServerError, resp.ErrInternalServer)
-		return
-	}
 	resp.Success(c, "password changed successfully")
 }
 
@@ -123,18 +88,6 @@ func changeUsername(c *gin.Context) {
 	}
 	if err := store.UserChangeUsername(user.NewUsername); err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
-		return
-	}
-	session := sessions.Default(c)
-	session.Clear()
-	session.Options(sessions.Options{
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
-	if err := session.Save(); err != nil {
-		resp.Error(c, http.StatusInternalServerError, resp.ErrInternalServer)
 		return
 	}
 	resp.Success(c, "username changed successfully")

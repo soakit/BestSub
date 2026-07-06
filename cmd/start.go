@@ -14,8 +14,6 @@ import (
 	"bestsub/internal/store"
 
 	"github.com/charmbracelet/log"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 )
@@ -44,13 +42,6 @@ var startCmd = &cobra.Command{
 		r.Use(middleware.Cors())
 		r.Use(middleware.Logger())
 		r.Use(middleware.StaticLocal("/", "static"))
-		cookieStore := cookie.NewStore([]byte(conf.APP_NAME))
-		cookieStore.Options(sessions.Options{
-			Path:     "/",
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-		})
-		r.Use(sessions.Sessions(conf.APP_NAME, cookieStore))
 
 		router.RegisterAll(r)
 
@@ -64,7 +55,7 @@ var startCmd = &cobra.Command{
 			}
 		}()
 
-		if err := store.UserInit(); err != nil {
+		if err := store.InitStore(); err != nil {
 			log.Errorf("user init error: %v", err)
 			return
 		}
