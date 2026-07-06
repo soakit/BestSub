@@ -12,33 +12,51 @@ import (
 
 var countryCodeRE = regexp.MustCompile(`^[A-Za-z]{2}$`)
 
-type Country struct {
-	HTTPParams          // 国家检测使用的公共 HTTP 参数。
+const TypeCountry ProbeType = "country"
+
+func init() {
+	register(TypeCountry, runCountryProbe)
+}
+
+type countryParams struct {
+	httpParams          // 国家检测使用的公共 HTTP 参数。
 	CountryField string `json:"country_field,omitempty"` // 响应 JSON 中的国家代码字段名；为空使用 country_code。
 }
 
-func (params Country) Run(ctx context.Context, client *http.Client) (NodeInfoPatch, error) {
+func runCountryProbe(ctx context.Context, client *http.Client, raw json.RawMessage, result any) error {
+	out, ok := result.(*string)
+	if !ok || out == nil {
+		return fmt.Errorf("probe %s result type mismatch", TypeCountry)
+	}
+
+	var params countryParams
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return err
+		}
+	}
 	params.withDefaults()
-	if err := params.HTTPParams.validate(); err != nil {
-		return NodeInfoPatch{}, err
+	if err := params.httpParams.validate(); err != nil {
+		return err
 	}
 
 	code, err := runCountry(ctx, client, params)
 	if err != nil {
-		return NodeInfoPatch{}, err
+		return err
 	}
-	return NodeInfoPatch{CountryCode: &code}, nil
+	*out = code
+	return nil
 }
 
-func (p *Country) withDefaults() {
+func (p *countryParams) withDefaults() {
 	if p.CountryField == "" {
 		p.CountryField = "country_code"
 	}
-	p.HTTPParams.withDefaults(10000)
+	p.httpParams.withDefaults(10000)
 }
 
-func runCountry(ctx context.Context, client *http.Client, params Country) (string, error) {
-	reqCtx, cancel := context.WithTimeout(ctx, params.HTTPParams.timeout())
+func runCountry(ctx context.Context, client *http.Client, params countryParams) (string, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, params.httpParams.timeout())
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, params.URL, nil)
 	if err != nil {
@@ -49,7 +67,7 @@ func runCountry(ctx context.Context, client *http.Client, params Country) (strin
 		return "", err
 	}
 	defer resp.Body.Close()
-	if !params.HTTPParams.statusOK(resp.StatusCode) {
+	if !params.httpParams.statusOK(resp.StatusCode) {
 		return "", fmt.Errorf("country status %d", resp.StatusCode)
 	}
 

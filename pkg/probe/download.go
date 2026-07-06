@@ -2,43 +2,62 @@ package probe
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 )
 
-type Download struct {
-	HTTPParams          // 下载测速使用的公共 HTTP 参数。
+const TypeDownload ProbeType = "download"
+
+func init() {
+	register(TypeDownload, runDownloadProbe)
+}
+
+type downloadParams struct {
+	httpParams          // 下载测速使用的公共 HTTP 参数。
 	MaxBytes      int64 `json:"max_bytes,omitempty"`       // 最大读取字节数；0 使用模块默认值。
 	MaxDurationMS int   `json:"max_duration_ms,omitempty"` // 最大测速读取时长，单位毫秒；0 使用模块默认值。
 }
 
-func (params Download) Run(ctx context.Context, client *http.Client) (NodeInfoPatch, error) {
+func runDownloadProbe(ctx context.Context, client *http.Client, raw json.RawMessage, result any) error {
+	out, ok := result.(*uint64)
+	if !ok || out == nil {
+		return fmt.Errorf("probe %s result type mismatch", TypeDownload)
+	}
+
+	var params downloadParams
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return err
+		}
+	}
 	params.withDefaults()
-	if err := params.HTTPParams.validate(); err != nil {
-		return NodeInfoPatch{}, err
+	if err := params.httpParams.validate(); err != nil {
+		return err
 	}
 
 	speed, err := runDownload(ctx, client, params)
 	if err != nil {
-		return NodeInfoPatch{}, err
+		return err
 	}
-	return NodeInfoPatch{DownloadSpeed: &speed}, nil
+	*out = speed
+	return nil
 }
 
-func (p *Download) withDefaults() {
+func (p *downloadParams) withDefaults() {
 	if p.MaxBytes <= 0 {
 		p.MaxBytes = 32 << 20
 	}
 	if p.MaxDurationMS <= 0 {
 		p.MaxDurationMS = 10000
 	}
-	p.HTTPParams.withDefaults(30000)
+	p.httpParams.withDefaults(30000)
 }
 
-func runDownload(ctx context.Context, client *http.Client, params Download) (uint64, error) {
-	reqCtx, cancel := context.WithTimeout(ctx, params.HTTPParams.timeout())
+func runDownload(ctx context.Context, client *http.Client, params downloadParams) (uint64, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, params.httpParams.timeout())
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, params.URL, nil)
 	if err != nil {
@@ -50,7 +69,7 @@ func runDownload(ctx context.Context, client *http.Client, params Download) (uin
 		return 0, err
 	}
 	defer resp.Body.Close()
-	if !params.HTTPParams.statusOK(resp.StatusCode) {
+	if !params.httpParams.statusOK(resp.StatusCode) {
 		return 0, fmt.Errorf("download status %d", resp.StatusCode)
 	}
 
