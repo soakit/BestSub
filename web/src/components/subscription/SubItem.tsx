@@ -51,7 +51,7 @@ export function SubItem({
                     setProgress(null);
                 });
                 break;
-            case "error":
+            case "failed":
                 setProgress(null);
                 toast.danger(sub.name, { description: ev.payload?.message as string });
                 break;

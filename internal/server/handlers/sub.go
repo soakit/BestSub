@@ -73,13 +73,12 @@ func create(c *gin.Context) {
 }
 
 func update(c *gin.Context) {
-	id := c.Param("id")
 	var config model.SubscriptionConfig
 	if err := c.ShouldBindJSON(&config); err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return
 	}
-	if err := store.SubscriptionUpdateConfig(id, config); err != nil {
+	if err := store.SubscriptionUpdateConfig(c.Param("id"), config); err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
 		return
 	}
@@ -87,8 +86,7 @@ func update(c *gin.Context) {
 }
 
 func delete(c *gin.Context) {
-	id := c.Param("id")
-	if err := store.SubscriptionDelete(id); err != nil {
+	if err := store.SubscriptionDelete(c.Param("id")); err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
 		return
 	}
@@ -104,21 +102,5 @@ func refresh(c *gin.Context) {
 }
 
 func refreshStream(c *gin.Context) {
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
-
-	service.Subscribe(
-		func(ev service.RefreshEvent) error {
-			if ev.Type == "heartbeat" {
-				_, err := c.Writer.Write([]byte(": ping\n\n"))
-				return err
-			}
-			c.SSEvent(ev.Type, ev)
-			c.Writer.Flush()
-			return nil
-		},
-		c.Request.Context().Done(),
-	)
+	service.RefreshEvents.Subscribe(c)
 }

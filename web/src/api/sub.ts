@@ -88,7 +88,7 @@ export function useRefreshSubscription() {
 
 export type RefreshEvent = {
     sub_id: string;
-    type: "progress" | "done" | "error";
+    type: "progress" | "done" | "failed";
     payload?: Record<string, unknown>;
 };
 
@@ -114,7 +114,7 @@ function connect() {
 
     es.addEventListener("progress", onEvent);
     es.addEventListener("done", onEvent);
-    es.addEventListener("error", onEvent);
+    es.addEventListener("failed", onEvent);
 
     es.onerror = () => {
         es?.close();

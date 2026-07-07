@@ -12,10 +12,23 @@ import (
 
 	"github.com/bestruirui/bestsub/internal/model"
 	"github.com/bestruirui/bestsub/internal/rhttp"
+	"github.com/bestruirui/bestsub/internal/server/stream"
 	"github.com/bestruirui/bestsub/internal/store"
 )
 
-var refreshMu sync.Map
+var (
+	refreshMu sync.Map
+
+	// RefreshEvents 是订阅刷新过程的实时事件流。
+	RefreshEvents = stream.New()
+)
+
+// RefreshEvent 表示刷新过程中的一条事件。
+type RefreshEvent struct {
+	SubID   string         `json:"sub_id"`
+	Type    string         `json:"type"`
+	Payload map[string]any `json:"payload"`
+}
 
 // RefreshSubscription 尝试启动订阅刷新任务。已在刷新时返回错误。
 func RefreshSubscription(id string) error {
@@ -27,6 +40,7 @@ func RefreshSubscription(id string) error {
 		return fmt.Errorf("subscription %s not found", id)
 	}
 
+	// 每个订阅独立互斥，避免同一个订阅被同时刷新导致节点池和状态交错写入。
 	val, _ := refreshMu.LoadOrStore(id, &sync.Mutex{})
 	mu := val.(*sync.Mutex)
 	if !mu.TryLock() {
@@ -51,7 +65,13 @@ func RefreshSubscription(id string) error {
 			urls = sub.Url
 		case model.URLTypeList:
 			if len(sub.Url) == 0 {
-				Emit(id, "error", map[string]any{"message": "no url provided"})
+				RefreshEvents.Emit("failed", RefreshEvent{
+					SubID: id,
+					Type:  "failed",
+					Payload: map[string]any{
+						"message": "no url provided",
+					},
+				})
 				return
 			}
 			if proxy == "" {
@@ -63,11 +83,23 @@ func RefreshSubscription(id string) error {
 				urls, err = fetchUrlList(sub.Url[0], sub.Header, proxy)
 			}
 			if err != nil {
-				Emit(id, "error", map[string]any{"message": fmt.Sprintf("parse urls: %v", err)})
+				RefreshEvents.Emit("failed", RefreshEvent{
+					SubID: id,
+					Type:  "failed",
+					Payload: map[string]any{
+						"message": fmt.Sprintf("parse urls: %v", err),
+					},
+				})
 				return
 			}
 		default:
-			Emit(id, "error", map[string]any{"message": fmt.Sprintf("unknown url_type: %d", sub.UrlType)})
+			RefreshEvents.Emit("failed", RefreshEvent{
+				SubID: id,
+				Type:  "failed",
+				Payload: map[string]any{
+					"message": fmt.Sprintf("unknown url_type: %d", sub.UrlType),
+				},
+			})
 			return
 		}
 
@@ -75,7 +107,15 @@ func RefreshSubscription(id string) error {
 		status := model.SubscriptionStatus{RefreshedAt: time.Now()}
 
 		for i, u := range urls {
-			Emit(id, "progress", map[string]any{"index": i, "total": total, "status": "fetching"})
+			RefreshEvents.Emit("progress", RefreshEvent{
+				SubID: id,
+				Type:  "progress",
+				Payload: map[string]any{
+					"index":  i,
+					"total":  total,
+					"status": "fetching",
+				},
+			})
 
 			var urlStatus model.SubscriptionStatus
 			if sub.ProxyMode == model.ProxyModeAuto {
@@ -88,7 +128,16 @@ func RefreshSubscription(id string) error {
 			}
 
 			if err != nil {
-				Emit(id, "progress", map[string]any{"index": i, "total": total, "status": "fail", "error": err.Error()})
+				RefreshEvents.Emit("progress", RefreshEvent{
+					SubID: id,
+					Type:  "progress",
+					Payload: map[string]any{
+						"index":  i,
+						"total":  total,
+						"status": "fail",
+						"error":  err.Error(),
+					},
+				})
 				continue
 			}
 
@@ -98,22 +147,36 @@ func RefreshSubscription(id string) error {
 				status.ExpiresAt = urlStatus.ExpiresAt
 			}
 
-			Emit(id, "progress", map[string]any{"index": i, "total": total, "status": "ok"})
+			RefreshEvents.Emit("progress", RefreshEvent{
+				SubID: id,
+				Type:  "progress",
+				Payload: map[string]any{
+					"index":  i,
+					"total":  total,
+					"status": "ok",
+				},
+			})
 		}
 
 		status.NodeNum = uint32(store.NodePoolCount(id))
 
 		if err := store.SubscriptionUpdateStatus(id, status); err != nil {
-			Emit(id, "error", map[string]any{"message": fmt.Sprintf("update status: %v", err)})
+			RefreshEvents.Emit("failed", RefreshEvent{
+				SubID: id,
+				Type:  "failed",
+				Payload: map[string]any{
+					"message": fmt.Sprintf("update status: %v", err),
+				},
+			})
 			return
 		}
 
-		Emit(id, "done", nil)
+		RefreshEvents.Emit("done", RefreshEvent{SubID: id, Type: "done"})
 	}()
 	return nil
 }
 
-// fetchUrlList 拉取 URL 列表内容，按行解析为多个 URL
+// fetchUrlList 拉取 URL 列表内容，按行解析为多个 URL。
 func fetchUrlList(listUrl string, header map[string]string, proxy string) ([]string, error) {
 	req, err := http.NewRequest(http.MethodGet, listUrl, nil)
 	if err != nil {
@@ -147,9 +210,8 @@ func fetchUrlList(listUrl string, header map[string]string, proxy string) ([]str
 	return urls, nil
 }
 
-// refreshOne 拉取单个 URL 的订阅内容，返回节点数和流量状态
+// refreshOne 拉取单个 URL 的订阅内容，返回节点数和流量状态。
 func refreshOne(subID, rawUrl string, header map[string]string, proxy string) (uint32, model.SubscriptionStatus, error) {
-	client := rhttp.New(proxy)
 	req, err := http.NewRequest(http.MethodGet, rawUrl, nil)
 	if err != nil {
 		return 0, model.SubscriptionStatus{}, fmt.Errorf("create request: %w", err)
@@ -158,7 +220,7 @@ func refreshOne(subID, rawUrl string, header map[string]string, proxy string) (u
 		req.Header.Set(k, v)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := rhttp.New(proxy).Do(req)
 	if err != nil {
 		return 0, model.SubscriptionStatus{}, fmt.Errorf("fetch: %w", err)
 	}
@@ -173,7 +235,7 @@ func refreshOne(subID, rawUrl string, header map[string]string, proxy string) (u
 		return 0, model.SubscriptionStatus{}, fmt.Errorf("read body: %w", err)
 	}
 
-	// 解析 subscription-userinfo 响应头
+	// 解析 subscription-userinfo 响应头。
 	var status model.SubscriptionStatus
 	if info := resp.Header.Get("subscription-userinfo"); info != "" {
 		for _, field := range strings.Split(strings.ToLower(info), ";") {
@@ -200,9 +262,8 @@ func refreshOne(subID, rawUrl string, header map[string]string, proxy string) (u
 		return 0, status, fmt.Errorf("convert: %w", err)
 	}
 
-	lines := bytes.Split(convBody, []byte("\n"))
 	var nodeNum uint32
-	for _, line := range lines[1:] {
+	for _, line := range bytes.Split(convBody, []byte("\n"))[1:] {
 		raw := bytes.TrimPrefix(line, []byte("  - "))
 		cp := make([]byte, len(raw))
 		copy(cp, raw)
