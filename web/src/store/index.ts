@@ -1,9 +1,9 @@
 import { type ElementType } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Signal, Server, Pulse, Link as LinkIcon, Cloud, Gear } from '@gravity-ui/icons';
+import { Signal, Server, Pulse, Link as LinkIcon, Gear } from '@gravity-ui/icons';
 
-export type Page = 'subscription' | 'node' | 'task' | 'sharing' | 'storage' | 'setting';
+export type Page = 'subscription' | 'node' | 'task' | 'sharing' | 'setting';
 
 export type NavItem = { id: Page; label: string; icon: ElementType };
 
@@ -12,7 +12,6 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
   { id: 'node', label: '节点', icon: Server },
   { id: 'task', label: '任务', icon: Pulse },
   { id: 'sharing', label: '分享', icon: LinkIcon },
-  { id: 'storage', label: '储存', icon: Cloud },
 ];
 
 export const SETTINGS_NAV_ITEM: NavItem = { id: 'setting', label: '设置', icon: Gear };

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { PageLayout } from "../PageLayout";
 import { useSettingList, useSetSetting } from "../../api/settings";
-import { GeneralSetting } from "./GeneralSetting";
-import { AppearanceSetting } from "./AppearanceSetting";
-import { DnsSetting } from "./DnsSetting";
+import { General } from "./General";
+import { Appearance } from "./Appearance";
+import { Dns } from "./Dns";
+import { Storage } from "./Storage";
+import { Tag } from "./Tag";
 
 export default function Setting() {
   const { data, isLoading } = useSettingList();
@@ -27,10 +29,12 @@ export default function Setting() {
 
   return (
     <PageLayout title="设置">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
-        <GeneralSetting val={val} set={set} />
-        <DnsSetting val={val} set={set} />
-        <AppearanceSetting val={val} set={set} />
+      <div className="columns-1 gap-4 lg:columns-2 lg:gap-8 [&>.settings-category]:mb-4 [&>.settings-category]:break-inside-avoid lg:[&>.settings-category]:mb-8">
+        <Appearance val={val} set={set} />
+        <General val={val} set={set} />
+        <Dns val={val} set={set} />
+        <Storage />
+        <Tag />
       </div>
     </PageLayout>
   );

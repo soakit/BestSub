@@ -54,17 +54,6 @@ func StorageUpdateConfig(id string, config model.StorageTargetConfig) error {
 	return nil
 }
 
-func StorageUpdateStatus(id, status string) error {
-	if err := db.Model(&model.Storage{}).Where("id = ?", id).Update("status", status).Error; err != nil {
-		return err
-	}
-	if storage, ok := storageCache.Get(id); ok {
-		storage.Status = status
-		storageCache.Set(id, storage)
-	}
-	return nil
-}
-
 func StorageDelete(id string) error {
 	if err := db.Delete(&model.Storage{}, "id = ?", id).Error; err != nil {
 		return err

@@ -12,7 +12,6 @@ const Subscription = lazy(pageImports.subscription);
 const Node = lazy(pageImports.node);
 const Task = lazy(pageImports.task);
 const Sharing = lazy(pageImports.sharing);
-const Storage = lazy(pageImports.storage);
 const Setting = lazy(pageImports.setting);
 
 // 放在 Suspense 内部，只有当前 lazy 页面提交后才会隐藏 HTML 启动画面。
@@ -69,7 +68,6 @@ export default function App() {
           {visiblePage === 'node' && <Node />}
           {visiblePage === 'task' && <Task />}
           {visiblePage === 'sharing' && <Sharing />}
-          {visiblePage === 'storage' && <Storage />}
           {visiblePage === 'setting' && <Setting />}
         </BootLoadingGate>
       </Suspense>

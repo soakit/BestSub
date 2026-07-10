@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { Input, Label } from "@heroui/react";
+import { Globe } from "@gravity-ui/icons";
 
-export function DnsSetting({ val, set }: { val: (key: string) => string; set: (key: string, value: string) => void }) {
+export function Dns({ val, set }: { val: (key: string) => string; set: (key: string, value: string) => void }) {
     const [pending, setPending] = useState<Record<string, string>>({});
 
     return (
         <div className="settings-category">
             <div className="text-foreground/85 mt-1 mb-2.5 flex items-center gap-2 px-1 text-base font-semibold tracking-tight">
-                <span className="flex-1">DNS 设置</span>
+                <Globe className="size-4 shrink-0" />
+                <span className="flex-1">DNS</span>
             </div>
             <div className="bg-surface grid grid-cols-1 overflow-hidden rounded-xl">
                 {/* 默认 DNS */}

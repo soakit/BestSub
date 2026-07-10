@@ -5,7 +5,6 @@ export const pageImports = {
   node: () => import("../components/node"),
   task: () => import("../components/task"),
   sharing: () => import("../components/Sharing"),
-  storage: () => import("../components/Storage"),
   setting: () => import("../components/setting"),
 };
 

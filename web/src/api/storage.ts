@@ -10,7 +10,7 @@ export type StorageConfig =
 
 export type Storage = StorageConfig & {
     id: string;
-    status: string;
+    created_at: string;
 };
 
 const queryKey = ["storage"];

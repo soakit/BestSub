@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { Switch, Input, Label, Select, ListBox } from "@heroui/react";
+import { Sliders } from "@gravity-ui/icons";
 import { useInterfaces } from "../../api/settings";
 
-export function GeneralSetting({ val, set }: { val: (key: string) => string; set: (key: string, value: string) => void }) {
+export function General({ val, set }: { val: (key: string) => string; set: (key: string, value: string) => void }) {
     const { data: ifaces } = useInterfaces();
     const [pending, setPending] = useState<Record<string, string>>({});
 
     return (
         <div className="settings-category">
             <div className="text-foreground/85 mt-1 mb-2.5 flex items-center gap-2 px-1 text-base font-semibold tracking-tight">
-                <span className="flex-1">通用设置</span>
+                <Sliders className="size-4 shrink-0" />
+                <span className="flex-1">通用</span>
             </div>
             <div className="bg-surface grid grid-cols-1 overflow-hidden rounded-xl">
                 {/* 全局代理 */}

@@ -1,10 +1,12 @@
 import { Switch, Label, Select, ListBox } from "@heroui/react";
+import { Palette } from "@gravity-ui/icons";
 
-export function AppearanceSetting({ val, set }: { val: (key: string) => string; set: (key: string, value: string) => void }) {
+export function Appearance({ val, set }: { val: (key: string) => string; set: (key: string, value: string) => void }) {
     return (
         <div className="settings-category">
             <div className="text-foreground/85 mb-2.5 flex items-center gap-2 px-1 text-base font-semibold tracking-tight">
-                <span className="flex-1">外观设置</span>
+                <Palette className="size-4 shrink-0" />
+                <span className="flex-1">外观</span>
             </div>
             <div className="bg-surface grid grid-cols-1 overflow-hidden rounded-xl">
                 {/* 自动切换主题 */}
