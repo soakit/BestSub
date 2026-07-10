@@ -44,11 +44,17 @@ const defaultConfig: TaskConfig = {
 function newStep(): TaskStep {
     return {
         type: "delay",
-        params: { url: "", timeout_ms: 10000, attempts: 1 },
+        params: defaultStepParams("delay"),
         concurrency: 8,
         pass: {},
         order: "none",
     };
+}
+
+function defaultStepParams(type: TaskStep["type"]) {
+    if (type === "download") return { url: "https://speed.cloudflare.com/__down?during=download&bytes=999999" };
+    if (type === "country") return { url: "https://speed.cloudflare.com/meta", country_field: "country" };
+    return { url: "https://gstatic.com/generate_204", timeout_ms: 10000, attempts: 1 };
 }
 
 function keysToStrings(keys: Key | Key[] | null) {
@@ -89,7 +95,11 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
     const createTask = useCreateTask();
     const updateTask = useUpdateTask();
     const [editingStep, setEditingStep] = useState<number | null>(null);
-    const [formState, setFormState] = useState<TaskConfig>(task ? { ...defaultConfig, ...task } : { ...defaultConfig, steps: [newStep()] });
+    const [formState, setFormState] = useState<TaskConfig>(
+        task
+            ? { ...defaultConfig, ...task, steps: task.steps.map((step) => ({ ...step, params: { ...defaultStepParams(step.type), ...(step.params ?? {}) } })) }
+            : { ...defaultConfig, steps: [newStep()] }
+    );
     const [sourceRows, setSourceRows] = useState<TaskSourceType[]>(() => initialSourceRows(task));
     const [landingSourceRows, setLandingSourceRows] = useState<LandingSourceType[]>(() => initialLandingRows(task));
     const resultTasks = useMemo(() => tasks.filter((t) => t.id !== task?.id), [tasks, task?.id]);
@@ -347,7 +357,7 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
                         <Select.Popover>
                             <ListBox>
                                 {storages.map((storage) => (
-                                    <ListBox.Item key={storage.id} id={storage.id} textValue={storage.id}>{storage.id}</ListBox.Item>
+                                    <ListBox.Item key={storage.id} id={storage.id} textValue={storage.name}>{storage.name}</ListBox.Item>
                                 ))}
                             </ListBox>
                         </Select.Popover>
@@ -414,7 +424,11 @@ function TaskSourcePicker({ label, ariaLabel, placeholder, value, options, onCha
 function TaskStepFields({ step, onChange }: { step: TaskStep; onChange: (step: TaskStep) => void }) {
     return (
         <div className="flex flex-col gap-4">
-            <Select className="w-full" variant="secondary" value={step.type} onChange={(key) => onChange({ ...step, type: String(key) as TaskStep["type"] })}>
+            <Select className="w-full" variant="secondary" value={step.type} onChange={(key) => {
+                const type = String(key) as TaskStep["type"];
+                if (type === step.type) return;
+                onChange({ ...step, type, params: defaultStepParams(type) });
+            }}>
                 <Label>检测类型</Label>
                 <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
                 <Select.Popover>
@@ -435,6 +449,12 @@ function TaskStepFields({ step, onChange }: { step: TaskStep; onChange: (step: T
             {step.type === "delay" && <NumberField label="尝试次数" value={step.params?.attempts} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), attempts: value } })} />}
             {step.type === "download" && <NumberField label="读取字节" value={step.params?.max_bytes} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), max_bytes: value } })} />}
             {step.type === "download" && <NumberField label="读取时长 ms" value={step.params?.max_duration_ms} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), max_duration_ms: value } })} />}
+            {step.type === "country" && (
+                <TextField value={step.params?.country_field ?? ""} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), country_field: value } })}>
+                    <Label>国家字段</Label>
+                    <Input variant="secondary" />
+                </TextField>
+            )}
             <Select className="w-full" variant="secondary" value={step.order || "none"} onChange={(key) => onChange({ ...step, order: String(key) as TaskStep["order"] })}>
                 <Label>处理顺序</Label>
                 <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>

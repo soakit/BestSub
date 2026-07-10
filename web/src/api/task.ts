@@ -1,9 +1,11 @@
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "./client";
+import { apiRequest, apiUnauthorizedEvent } from "./client";
 import type { Storage } from "./storage";
 
 export type TaskParams = {
     url: string;
+    country_field: string;
     timeout_ms: number;
     attempts: number;
     max_bytes: number;
@@ -73,6 +75,17 @@ export type Task = {
     finished_at: string;
 } & TaskConfig;
 
+export type TaskProgress = {
+    taskId: string;
+    step: number;
+    done: number;
+    total: number;
+};
+
+export type TaskProgressEvent = TaskProgress & {
+    type: "progress" | "done";
+};
+
 export const queryKey = ["task"];
 
 export function useTasks() {
@@ -86,6 +99,14 @@ export function useGetTask(id: string) {
     return useQuery({
         queryKey: ["task", id],
         queryFn: () => apiRequest<Task>(`/api/v1/task/get/${id}`),
+        enabled: !!id,
+    });
+}
+
+export function useTaskResultCount(id: string) {
+    return useQuery({
+        queryKey: ["task", id, "result"],
+        queryFn: () => apiRequest<number>(`/api/v1/task/result/${id}`),
         enabled: !!id,
     });
 }
@@ -115,4 +136,87 @@ export function useDeleteTask() {
             apiRequest<string>(`/api/v1/task/del/${id}`, { method: "DELETE" }),
         onSuccess: () => qc.invalidateQueries({ queryKey }),
     });
+}
+
+export function useRunTask() {
+    return useMutation({
+        mutationFn: (id: string) =>
+            apiRequest<void>(`/api/v1/task/run/${id}`, { method: "POST" }),
+    });
+}
+
+export function useStopTask() {
+    return useMutation({
+        mutationFn: (id: string) =>
+            apiRequest<void>(`/api/v1/task/stop/${id}`, { method: "POST" }),
+    });
+}
+
+type Listener = (ev: TaskProgressEvent) => void;
+
+let es: EventSource | null = null;
+let listeners: Set<Listener> = new Set();
+let connecting = false;
+
+function connect() {
+    if (es || connecting) return;
+    connecting = true;
+    es = new EventSource("/api/v1/task/stream", {
+        withCredentials: true,
+    });
+
+    const onProgress = (e: MessageEvent) => {
+        try {
+            listeners.forEach((fn) => fn({ ...(JSON.parse(e.data) as TaskProgress), type: "progress" }));
+        } catch { }
+    };
+    const onDone = (e: MessageEvent) => {
+        try {
+            listeners.forEach((fn) => fn({ ...(JSON.parse(e.data) as TaskProgress), type: "done" }));
+        } catch { }
+    };
+
+    es.addEventListener("progress", onProgress);
+    es.addEventListener("done", onDone);
+
+    es.onerror = () => {
+        es?.close();
+        es = null;
+        connecting = false;
+        setTimeout(() => { if (listeners.size > 0) connect(); }, 3000);
+    };
+
+    connecting = false;
+}
+
+function disconnect() {
+    es?.close();
+    es = null;
+    connecting = false;
+}
+
+if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) disconnect();
+        else if (listeners.size > 0) connect();
+    });
+    window.addEventListener(apiUnauthorizedEvent, () => {
+        disconnect();
+        listeners.clear();
+    });
+}
+
+export function useTaskProgressStream(onEvent: (ev: TaskProgressEvent) => void) {
+    const cbRef = useRef(onEvent);
+    cbRef.current = onEvent;
+
+    useEffect(() => {
+        const listener: Listener = (ev) => cbRef.current(ev);
+        listeners.add(listener);
+        if (!document.hidden) connect();
+        return () => {
+            listeners.delete(listener);
+            if (listeners.size === 0) disconnect();
+        };
+    }, []);
 }

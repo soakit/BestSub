@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/bestruirui/bestsub/internal/model"
@@ -8,6 +9,7 @@ import (
 	"github.com/bestruirui/bestsub/internal/server/resp"
 	"github.com/bestruirui/bestsub/internal/server/router"
 	"github.com/bestruirui/bestsub/internal/store"
+	taskservice "github.com/bestruirui/bestsub/internal/task"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,6 +36,22 @@ func init() {
 		AddRoute(
 			router.NewRoute("/del/:id", http.MethodDelete).
 				Handle(taskDelete),
+		).
+		AddRoute(
+			router.NewRoute("/run/:id", http.MethodPost).
+				Handle(taskRun),
+		).
+		AddRoute(
+			router.NewRoute("/stop/:id", http.MethodPost).
+				Handle(taskStop),
+		).
+		AddRoute(
+			router.NewRoute("/result/:id", http.MethodGet).
+				Handle(taskResult),
+		).
+		AddRoute(
+			router.NewRoute("/stream", http.MethodGet).
+				Handle(taskStream),
 		)
 }
 
@@ -82,4 +100,36 @@ func taskDelete(c *gin.Context) {
 		return
 	}
 	resp.Success(c, "task deleted successfully")
+}
+
+func taskRun(c *gin.Context) {
+	if err := taskservice.Run(c.Param("id")); err != nil {
+		if errors.Is(err, taskservice.ErrTaskNotFound) {
+			resp.Error(c, http.StatusNotFound, resp.ErrResourceNotFound)
+			return
+		}
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	resp.Success(c, nil)
+}
+
+func taskStop(c *gin.Context) {
+	if err := taskservice.StopTask(c.Param("id")); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	resp.Success(c, nil)
+}
+
+func taskResult(c *gin.Context) {
+	if _, ok := store.TaskGet(c.Param("id")); !ok {
+		resp.Error(c, http.StatusNotFound, resp.ErrResourceNotFound)
+		return
+	}
+	resp.Success(c, taskservice.ResultCount(c.Param("id")))
+}
+
+func taskStream(c *gin.Context) {
+	taskservice.ProgressEvents.Subscribe(c)
 }
