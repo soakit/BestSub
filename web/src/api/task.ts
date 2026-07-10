@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "./client";
-import type { Node } from "./node";
 import type { Storage } from "./storage";
-import type { Subscription, Tag } from "./sub";
 
 export type TaskParams = {
     url: string;
@@ -45,22 +43,34 @@ export type TaskConfig = {
     auto_run: number;
     cron_expr: string;
     steps: TaskStep[];
-    subscriptions: Subscription[];
-    nodes: Node[];
-    tags: Tag[];
-    result_tasks: TaskRef[];
+    subscriptions: TaskSubscription[];
+    nodes: TaskNode[];
+    tags: TaskTag[];
+    result_tasks: TaskInputResult[];
     custom_landing_node_enable: number;
-    landing_subscriptions: Subscription[];
-    landing_nodes: Node[];
+    landing_subscriptions: TaskSubscription[];
+    landing_nodes: TaskNode[];
 } & StorageConfig;
 
-export type TaskRef = {
+export type TaskSubscription = {
     id: string;
-    name: string;
+};
+
+export type TaskNode = {
+    id: string;
+};
+
+export type TaskTag = {
+    id: number;
+};
+
+export type TaskInputResult = {
+    id: string;
 };
 
 export type Task = {
     id: string;
+    finished_at: string;
 } & TaskConfig;
 
 export const queryKey = ["task"];
@@ -75,7 +85,7 @@ export function useTasks() {
 export function useGetTask(id: string) {
     return useQuery({
         queryKey: ["task", id],
-        queryFn: () => apiRequest<Task>(`/api/v1/task/${id}`),
+        queryFn: () => apiRequest<Task>(`/api/v1/task/get/${id}`),
         enabled: !!id,
     });
 }
@@ -93,7 +103,7 @@ export function useUpdateTask() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: ({ id, ...payload }: TaskConfig & { id: string }) =>
-            apiRequest<string>(`/api/v1/task/${id}`, { method: "PUT", body: payload }),
+            apiRequest<string>(`/api/v1/task/update/${id}`, { method: "PUT", body: payload }),
         onSuccess: () => qc.invalidateQueries({ queryKey }),
     });
 }
@@ -102,7 +112,7 @@ export function useDeleteTask() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) =>
-            apiRequest<string>(`/api/v1/task/${id}`, { method: "DELETE" }),
+            apiRequest<string>(`/api/v1/task/del/${id}`, { method: "DELETE" }),
         onSuccess: () => qc.invalidateQueries({ queryKey }),
     });
 }

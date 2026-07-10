@@ -158,8 +158,6 @@ func RefreshSubscription(id string) error {
 			})
 		}
 
-		status.NodeNum = uint32(store.NodePoolCount(id))
-
 		if err := store.SubscriptionUpdateStatus(id, status); err != nil {
 			RefreshEvents.Emit("failed", RefreshEvent{
 				SubID: id,

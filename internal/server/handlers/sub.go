@@ -25,11 +25,11 @@ func init() {
 				Handle(create),
 		).
 		AddRoute(
-			router.NewRoute("/:id", http.MethodPut).
+			router.NewRoute("/update/:id", http.MethodPut).
 				Handle(update),
 		).
 		AddRoute(
-			router.NewRoute("/:id", http.MethodDelete).
+			router.NewRoute("/del/:id", http.MethodDelete).
 				Handle(delete),
 		).
 		AddRoute(
@@ -41,7 +41,7 @@ func init() {
 				Handle(refreshStream),
 		).
 		AddRoute(
-			router.NewRoute("/:id", http.MethodGet).
+			router.NewRoute("/get/:id", http.MethodGet).
 				Handle(get),
 		)
 }

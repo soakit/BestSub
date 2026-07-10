@@ -24,15 +24,15 @@ func init() {
 				Handle(taskCreate),
 		).
 		AddRoute(
-			router.NewRoute("/:id", http.MethodGet).
+			router.NewRoute("/get/:id", http.MethodGet).
 				Handle(taskGet),
 		).
 		AddRoute(
-			router.NewRoute("/:id", http.MethodPut).
+			router.NewRoute("/update/:id", http.MethodPut).
 				Handle(taskUpdate),
 		).
 		AddRoute(
-			router.NewRoute("/:id", http.MethodDelete).
+			router.NewRoute("/del/:id", http.MethodDelete).
 				Handle(taskDelete),
 		)
 }

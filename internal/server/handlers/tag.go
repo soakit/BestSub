@@ -17,15 +17,15 @@ func init() {
 	router.NewGroupRouter("/api/v1/tag").
 		Use(middleware.Auth()).
 		AddRoute(
-			router.NewRoute("", http.MethodGet).
+			router.NewRoute("/list", http.MethodGet).
 				Handle(tagList),
 		).
 		AddRoute(
-			router.NewRoute("", http.MethodPost).
+			router.NewRoute("/create", http.MethodPost).
 				Handle(tagCreate),
 		).
 		AddRoute(
-			router.NewRoute("/:id", http.MethodDelete).
+			router.NewRoute("/del/:id", http.MethodDelete).
 				Handle(tagDelete),
 		)
 }

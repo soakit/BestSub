@@ -118,18 +118,18 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
 
     const setSourceValue = (type: TaskSourceType, ids: string[]) => {
         if (type === "subscription") {
-            setForm("subscriptions", subscriptions.filter((sub) => ids.includes(sub.id)));
+            setForm("subscriptions", ids.map((id) => ({ id })));
             return;
         }
         if (type === "node") {
-            setForm("nodes", nodes.filter((node) => ids.includes(node.id)));
+            setForm("nodes", ids.map((id) => ({ id })));
             return;
         }
         if (type === "tag") {
-            setForm("tags", tags.filter((tag) => ids.includes(String(tag.id))));
+            setForm("tags", ids.map((id) => ({ id: Number(id) })));
             return;
         }
-        setForm("result_tasks", resultTasks.filter((t) => ids.includes(t.id)).map((t) => ({ id: t.id, name: t.name })));
+        setForm("result_tasks", ids.map((id) => ({ id })));
     };
 
     const clearSourceValue = (type: TaskSourceType) => {
@@ -160,10 +160,10 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
 
     const setLandingSourceValue = (type: LandingSourceType, ids: string[]) => {
         if (type === "subscription") {
-            setForm("landing_subscriptions", subscriptions.filter((sub) => ids.includes(sub.id)));
+            setForm("landing_subscriptions", ids.map((id) => ({ id })));
             return;
         }
-        setForm("landing_nodes", nodes.filter((node) => ids.includes(node.id)));
+        setForm("landing_nodes", ids.map((id) => ({ id })));
     };
 
     const clearLandingSourceValue = (type: LandingSourceType) => {
@@ -184,9 +184,13 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
             ...formState,
             name: formState.name.trim(),
             cron_expr: formState.auto_run === 1 ? formState.cron_expr.trim() : "",
+            subscriptions: formState.subscriptions.map((sub) => ({ id: sub.id })),
+            nodes: formState.nodes.map((node) => ({ id: node.id })),
+            tags: formState.tags.map((tag) => ({ id: tag.id })),
+            result_tasks: formState.result_tasks.map((task) => ({ id: task.id })),
             custom_landing_node_enable: customLandingEnabled ? 1 : 0,
-            landing_subscriptions: customLandingEnabled ? formState.landing_subscriptions : [],
-            landing_nodes: customLandingEnabled ? formState.landing_nodes : [],
+            landing_subscriptions: customLandingEnabled ? formState.landing_subscriptions.map((sub) => ({ id: sub.id })) : [],
+            landing_nodes: customLandingEnabled ? formState.landing_nodes.map((node) => ({ id: node.id })) : [],
             storage_id: formState.storage_enable === 1 ? formState.storage_id : "",
             save_path: formState.storage_enable === 1 ? formState.save_path.trim() : "",
             node_rename_expression: formState.storage_enable === 1 ? formState.node_rename_expression.trim() : "",

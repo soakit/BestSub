@@ -1,18 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "./client";
-import type { Tag } from "./sub";
 
 export type NodeConfig = {
     name: string;
-    tags: Tag[];
+    tag_names: string[];
     content: string;
 };
 
 export type NodeInfo = {
-    alive: boolean;
     delay: number;
     download_speed: number;
-    upload_speed: number;
     country_code: string;
 };
 
@@ -43,7 +40,7 @@ export function useUpdateNode() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: ({ id, ...payload }: NodeConfig & { id: string }) =>
-            apiRequest<string>(`/api/v1/node/${id}`, { method: "PUT", body: payload }),
+            apiRequest<string>(`/api/v1/node/update/${id}`, { method: "PUT", body: payload }),
         onSuccess: () => qc.invalidateQueries({ queryKey }),
     });
 }
@@ -52,7 +49,7 @@ export function useDeleteNode() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) =>
-            apiRequest<string>(`/api/v1/node/${id}`, { method: "DELETE" }),
+            apiRequest<string>(`/api/v1/node/del/${id}`, { method: "DELETE" }),
         onSuccess: () => qc.invalidateQueries({ queryKey }),
     });
 }

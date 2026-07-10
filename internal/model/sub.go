@@ -36,7 +36,7 @@ type SubscriptionConfig struct {
 	Url                []string          `gorm:"column:url;not null;type:json;serializer:json" json:"url" binding:"required"` // 订阅链接列表
 	Enable             uint8             `gorm:"column:enable;default:1" json:"enable"`                                       // 是否启用
 	Name               string            `gorm:"column:name;type:varchar(255)" json:"name"`                                   // 名称备注
-	Tags               []Tag             `gorm:"many2many:tag_subscriptions" json:"tags"`                                     // 标签
+	TagNames           []string          `gorm:"-" json:"tag_names"`                                                          // 标签名称，仅接口展示。
 	Header             map[string]string `gorm:"column:header;type:json;serializer:json" json:"header"`                       // 拉取订阅时的请求头
 	AutoUpdate         uint8             `gorm:"column:auto_update;default:1" json:"auto_update"`                             // 是否启用自动更新
 	CronExpr           string            `gorm:"column:cron_expr;type:varchar(64)" json:"cron_expr"`                          // Cron更新表达式
@@ -47,7 +47,7 @@ type SubscriptionConfig struct {
 }
 
 type SubscriptionStatus struct {
-	NodeNum      uint32    `gorm:"column:node_num;default:0" json:"node_num"`            // 节点数量
+	NodeNum      uint32    `gorm:"-" json:"node_num"`                                    // 节点数量，实时来自内存节点池，不落库。
 	TrafficTotal int64     `gorm:"column:traffic_total;default:0" json:"traffic_total"`  // 总流量
 	TrafficUsed  int64     `gorm:"column:traffic_used;default:0" json:"traffic_used"`    // 已使用的流量
 	ExpiresAt    time.Time `gorm:"column:expires_at;default:null" json:"expires_at"`     // 到期时间

@@ -15,9 +15,9 @@ type Node struct {
 }
 
 type NodeConfig struct {
-	Name    string `gorm:"column:name;type:varchar(255)" json:"name"`                  // 节点名称
-	Tags    []Tag  `gorm:"many2many:tag_nodes" json:"tags"`                            // 标签
-	Content string `gorm:"column:content;type:text" json:"content" binding:"required"` // 节点内容
+	Name     string   `gorm:"column:name;type:varchar(255)" json:"name"`                  // 节点名称
+	TagNames []string `gorm:"-" json:"tag_names"`                                          // 标签名称，仅接口展示。
+	Content  string   `gorm:"column:content;type:text" json:"content" binding:"required"` // 节点内容
 }
 
 type NodeInfo struct {

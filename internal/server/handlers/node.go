@@ -24,11 +24,11 @@ func init() {
 				Handle(nodeCreate),
 		).
 		AddRoute(
-			router.NewRoute("/:id", http.MethodPut).
+			router.NewRoute("/update/:id", http.MethodPut).
 				Handle(nodeUpdate),
 		).
 		AddRoute(
-			router.NewRoute("/:id", http.MethodDelete).
+			router.NewRoute("/del/:id", http.MethodDelete).
 				Handle(nodeDelete),
 		)
 }

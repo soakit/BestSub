@@ -14,16 +14,21 @@ import (
 // nodePool: map[subID]map[fingerprint]*nodePoolNode
 // 外层 key 是订阅 ID，内层 key 是节点指纹，天然去重。
 var (
-	nodePoolLock sync.RWMutex
-	nodePool     = map[string]map[uint64]*nodePoolNode{}
+	nodePoolLock sync.RWMutex                            // 保护 nodePool 的并发读写
+	nodePool     = map[string]map[uint64]*nodePoolNode{} // 内存节点池，按订阅 ID 和节点指纹分组
 )
 
-type nodePoolNode struct {
+type nodePoolNode struct { // 节点池内部节点，保存原始节点和检测信息
 	Proxy []byte         // YAML 行内格式原始节点字节。
 	Info  model.NodeInfo // 节点测试信息，可独立更新。
 }
 
-type NodePoolFilter struct {
+type NodePoolItem struct { // 节点池导出项，用于检测后按指纹写回结果
+	Fingerprint uint64 // 节点指纹，用于定位节点池中的唯一节点。
+	Proxy       []byte // YAML 行内格式原始节点字节。
+}
+
+type NodePoolFilter struct { // 节点池筛选条件，0 值表示不限制对应条件
 	MinDelay            uint16   // 最小延迟，单位毫秒；0 表示不限制。
 	MaxDelay            uint16   // 最大延迟，单位毫秒；0 表示不限制。
 	MinDownloadSpeed    uint64   // 最小下载速度，单位 bytes/s；0 表示不限制。
@@ -141,8 +146,8 @@ func NodePoolCount(subID string) int {
 	return len(nodePool[subID])
 }
 
-// NodePoolListBySubscription 按订阅 ID 返回节点原始字节列表。
-func NodePoolListBySubscription(subID string) [][]byte {
+// NodePoolListBySubscription 按订阅 ID 返回节点指纹和原始字节列表。
+func NodePoolListBySubscription(subID string) []NodePoolItem {
 	nodePoolLock.RLock()
 	defer nodePoolLock.RUnlock()
 
@@ -150,9 +155,12 @@ func NodePoolListBySubscription(subID string) [][]byte {
 	if sp == nil {
 		return nil
 	}
-	result := make([][]byte, 0, len(sp))
-	for _, n := range sp {
-		result = append(result, n.Proxy)
+	result := make([]NodePoolItem, 0, len(sp))
+	for fingerprint, n := range sp {
+		result = append(result, NodePoolItem{
+			Fingerprint: fingerprint,
+			Proxy:       n.Proxy,
+		})
 	}
 	return result
 }

@@ -20,7 +20,7 @@ export type SubscriptionConfig = {
     url: string[];
     enable: number;
     name: string;
-    tags: Tag[];
+    tag_names: string[];
     header: Record<string, string>;
     auto_update: number;
     cron_expr: string;
@@ -47,7 +47,7 @@ export function useSubscription() {
 export function useGetSubscription(id: string) {
     return useQuery({
         queryKey: ["subscription", id],
-        queryFn: () => apiRequest<Subscription>(`/api/v1/sub/${id}`),
+        queryFn: () => apiRequest<Subscription>(`/api/v1/sub/get/${id}`),
         enabled: !!id,
     });
 }
@@ -65,7 +65,7 @@ export function useUpdateSubscription() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: ({ id, ...payload }: SubscriptionConfig & { id: string }) =>
-            apiRequest<string>(`/api/v1/sub/${id}`, { method: "PUT", body: payload }),
+            apiRequest<string>(`/api/v1/sub/update/${id}`, { method: "PUT", body: payload }),
         onSuccess: () => qc.invalidateQueries({ queryKey }),
     });
 }
@@ -74,7 +74,7 @@ export function useDeleteSubscription() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) =>
-            apiRequest<string>(`/api/v1/sub/${id}`, { method: "DELETE" }),
+            apiRequest<string>(`/api/v1/sub/del/${id}`, { method: "DELETE" }),
         onSuccess: () => qc.invalidateQueries({ queryKey }),
     });
 }

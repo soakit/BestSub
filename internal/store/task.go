@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/bestruirui/bestsub/internal/model"
 	"github.com/bestruirui/bestsub/internal/utils/cache"
@@ -9,11 +10,19 @@ import (
 	"gorm.io/gorm"
 )
 
-var taskCache = cache.New[string, model.Task](16)
+var taskCache = cache.New[string, model.Task](16) // 任务缓存，key 为任务 ID。
 
 func initTask() error {
 	tasks := []model.Task{}
-	if err := db.Preload("Subscriptions").Preload("Nodes").Preload("Tags").Preload("ResultTasks").Preload("LandingSubscriptions").Preload("LandingNodes").Preload("Storage").Find(&tasks).Error; err != nil {
+	if err := db.
+		Preload("Subscriptions", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
+		Preload("Nodes", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
+		Preload("Tags", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
+		Preload("ResultTasks", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
+		Preload("LandingSubscriptions", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
+		Preload("LandingNodes", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
+		Preload("Storage", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
+		Find(&tasks).Error; err != nil {
 		return fmt.Errorf("failed to load tasks: %w", err)
 	}
 	for _, task := range tasks {
@@ -40,22 +49,22 @@ func TaskCreate(task *model.Task) error {
 		if err := tx.Create(task).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(task).Association("Subscriptions").Replace(subscriptions); err != nil {
+		if err := tx.Omit("Subscriptions.*").Model(task).Association("Subscriptions").Replace(subscriptions); err != nil {
 			return err
 		}
-		if err := tx.Model(task).Association("Nodes").Replace(nodes); err != nil {
+		if err := tx.Omit("Nodes.*").Model(task).Association("Nodes").Replace(nodes); err != nil {
 			return err
 		}
-		if err := tx.Model(task).Association("Tags").Replace(tags); err != nil {
+		if err := tx.Omit("Tags.*").Model(task).Association("Tags").Replace(tags); err != nil {
 			return err
 		}
-		if err := tx.Model(task).Association("ResultTasks").Replace(resultTasks); err != nil {
+		if err := tx.Omit("ResultTasks.*").Model(task).Association("ResultTasks").Replace(resultTasks); err != nil {
 			return err
 		}
-		if err := tx.Model(task).Association("LandingSubscriptions").Replace(landingSubscriptions); err != nil {
+		if err := tx.Omit("LandingSubscriptions.*").Model(task).Association("LandingSubscriptions").Replace(landingSubscriptions); err != nil {
 			return err
 		}
-		return tx.Model(task).Association("LandingNodes").Replace(landingNodes)
+		return tx.Omit("LandingNodes.*").Model(task).Association("LandingNodes").Replace(landingNodes)
 	}); err != nil {
 		return err
 	}
@@ -113,22 +122,22 @@ func TaskUpdateConfig(id string, config model.TaskConfig) error {
 			return err
 		}
 		task := &model.Task{ID: id}
-		if err := tx.Model(task).Association("Subscriptions").Replace(subscriptions); err != nil {
+		if err := tx.Omit("Subscriptions.*").Model(task).Association("Subscriptions").Replace(subscriptions); err != nil {
 			return err
 		}
-		if err := tx.Model(task).Association("Nodes").Replace(nodes); err != nil {
+		if err := tx.Omit("Nodes.*").Model(task).Association("Nodes").Replace(nodes); err != nil {
 			return err
 		}
-		if err := tx.Model(task).Association("Tags").Replace(tags); err != nil {
+		if err := tx.Omit("Tags.*").Model(task).Association("Tags").Replace(tags); err != nil {
 			return err
 		}
-		if err := tx.Model(task).Association("ResultTasks").Replace(resultTasks); err != nil {
+		if err := tx.Omit("ResultTasks.*").Model(task).Association("ResultTasks").Replace(resultTasks); err != nil {
 			return err
 		}
-		if err := tx.Model(task).Association("LandingSubscriptions").Replace(landingSubscriptions); err != nil {
+		if err := tx.Omit("LandingSubscriptions.*").Model(task).Association("LandingSubscriptions").Replace(landingSubscriptions); err != nil {
 			return err
 		}
-		return tx.Model(task).Association("LandingNodes").Replace(landingNodes)
+		return tx.Omit("LandingNodes.*").Model(task).Association("LandingNodes").Replace(landingNodes)
 	}); err != nil {
 		return err
 	}
@@ -144,4 +153,13 @@ func TaskUpdateConfig(id string, config model.TaskConfig) error {
 		taskCache.Set(id, task)
 	}
 	return nil
+}
+
+func TaskUpdateFinishedAt(id string) {
+	finishedAt := time.Now()
+	db.Model(&model.Task{}).Where("id = ?", id).Update("finished_at", finishedAt)
+	if task, ok := taskCache.Get(id); ok {
+		task.FinishedAt = finishedAt
+		taskCache.Set(id, task)
+	}
 }

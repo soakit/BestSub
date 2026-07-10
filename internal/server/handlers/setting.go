@@ -19,11 +19,11 @@ func init() {
 	router.NewGroupRouter("/api/v1/setting").
 		Use(middleware.Auth()).
 		AddRoute(
-			router.NewRoute("", http.MethodGet).
+			router.NewRoute("/list", http.MethodGet).
 				Handle(settingList),
 		).
 		AddRoute(
-			router.NewRoute("", http.MethodPost).
+			router.NewRoute("/update", http.MethodPut).
 				Handle(settingSet),
 		).
 		AddRoute(

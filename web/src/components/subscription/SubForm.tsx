@@ -2,6 +2,7 @@ import { useImperativeHandle, useState } from "react";
 import type { Key } from "@heroui/react";
 import { Button, Switch, Modal, Form, TextField, Label, Input, useOverlayState, TextArea, TagGroup, Tag, Disclosure, CloseButton, Autocomplete, ListBox } from "@heroui/react";
 import { useCreateSubscription, useUpdateSubscription, type Subscription, type SubscriptionConfig } from "../../api/sub";
+import { useTags } from "../../api/tags";
 import { TagSelector } from "../common/TagSelector";
 
 // mihomo 支持的代理协议
@@ -28,7 +29,7 @@ const defaultConfig: SubscriptionConfig = {
     url: [],
     enable: 1,
     name: "",
-    tags: [],
+    tag_names: [],
     header: {},
     auto_update: 1,
     cron_expr: "0 */6 * * *",
@@ -43,6 +44,7 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
     const [editing, setEditing] = useState<Subscription | null>(null);
     const [formState, setFormState] = useState<Partial<SubscriptionConfig>>({});
     const [headerPairs, setHeaderPairs] = useState<[string, string][]>([["user-agent", "clash.meta/v1.19.27"]]);
+    const { data: allTags = [] } = useTags();
     const createSub = useCreateSubscription();
     const updateSub = useUpdateSubscription();
 
@@ -114,7 +116,7 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
                                     <TextArea name="url" placeholder={formState.url_type === 1 ? "https://example.com/sublist" : "https://example.com/sub"} variant="secondary" />
                                 </TextField>
 
-                                <TagSelector value={formState.tags ?? []} onChange={(tags) => setForm("tags", tags)} />
+                                <TagSelector value={allTags.filter((tag) => (formState.tag_names ?? []).includes(tag.name))} onChange={(tags) => setForm("tag_names", tags.map((tag) => tag.name))} />
 
                                 <Disclosure className="w-full" isExpanded={formState.auto_update === 1}>
                                     <Disclosure.Heading className="flex items-center">
