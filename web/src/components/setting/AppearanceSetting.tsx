@@ -14,9 +14,7 @@ export function AppearanceSetting({ val, set }: { val: (key: string) => string; 
                         isSelected={val("theme_auto") !== "0"}
                         onChange={() => set("theme_auto", val("theme_auto") !== "0" ? "0" : "1")}
                     >
-                        <Switch.Control>
-                            <Switch.Thumb />
-                        </Switch.Control>
+                        <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
                     </Switch>
                 </div>
 

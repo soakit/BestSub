@@ -19,9 +19,7 @@ export function GeneralSetting({ val, set }: { val: (key: string) => string; set
                         isSelected={val("proxy_enable") === "1"}
                         onChange={() => set("proxy_enable", val("proxy_enable") === "1" ? "0" : "1")}
                     >
-                        <Switch.Control>
-                            <Switch.Thumb />
-                        </Switch.Control>
+                        <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
                     </Switch>
                 </div>
 
@@ -58,9 +56,7 @@ export function GeneralSetting({ val, set }: { val: (key: string) => string; set
                         isSelected={val("sub_convert_proxy") === "1"}
                         onChange={() => set("sub_convert_proxy", val("sub_convert_proxy") === "1" ? "0" : "1")}
                     >
-                        <Switch.Control>
-                            <Switch.Thumb />
-                        </Switch.Control>
+                        <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
                     </Switch>
                 </div>
 
