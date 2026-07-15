@@ -57,55 +57,45 @@ func UpdateDNSConfig(defaultServers, mainServers []string) {
 	resolver.SystemResolver = dns.NewResolver(cfg)
 }
 
-// NewTransport 创建单代理的 http.Transport
-func NewTransport(raw []byte, iface ...string) (*http.Transport, error) {
+// NewTransport 创建单代理或链式代理的 http.Transport。
+// inner 为空时链路为本地 -> outer -> 目标；否则为本地 -> outer -> inner -> 目标。
+func NewTransport(outer, inner []byte, interfaceName string) (*http.Transport, func() error, error) {
 	var mapping map[string]any
-	if err := yaml.Unmarshal(raw, &mapping); err != nil {
-		return nil, fmt.Errorf("parse raw: %w", err)
+	if err := yaml.Unmarshal(outer, &mapping); err != nil {
+		return nil, nil, fmt.Errorf("parse outer: %w", err)
 	}
 	if mapping == nil {
-		return nil, fmt.Errorf("nil mapping")
+		return nil, nil, fmt.Errorf("nil outer mapping")
 	}
-	if len(iface) > 0 && iface[0] != "" {
-		mapping["interface-name"] = iface[0]
+	// 网卡只绑定 outer，inner 的服务器连接必须经过 outer。
+	if interfaceName != "" {
+		mapping["interface-name"] = interfaceName
 	}
 
 	processed, _ := yaml.Marshal(mapping)
-	proxy, err := createAdapter(processed)
+	outerAdapter, err := createAdapter(processed)
 	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("create outer adapter: %w", err)
 	}
-	return buildTransport(proxy), nil
-}
-
-// NewChainedTransport 创建链式代理的 http.Transport
-// 链路: 本地 -> outer -> inner -> 目标网站
-func NewChainedTransport(outer, inner []byte, iface ...string) (*http.Transport, error) {
-	// outer 直连互联网，网卡绑定在此
-	var outerMapping map[string]any
-	if err := yaml.Unmarshal(outer, &outerMapping); err != nil {
-		return nil, fmt.Errorf("parse outer: %w", err)
-	}
-	if outerMapping == nil {
-		return nil, fmt.Errorf("nil outer mapping")
-	}
-	if len(iface) > 0 && iface[0] != "" {
-		outerMapping["interface-name"] = iface[0]
-	}
-	outerProcessed, _ := yaml.Marshal(outerMapping)
-	outerAdapter, err := createAdapter(outerProcessed)
-	if err != nil {
-		return nil, fmt.Errorf("create outer adapter: %w", err)
+	if len(inner) == 0 {
+		return buildTransport(outerAdapter), outerAdapter.Close, nil
 	}
 
-	// inner 通过 outer 的通道连接自己的服务器
-	outerDialer := proxydialer.New(outerAdapter, false)
-	innerAdapter, err := createAdapter(inner, outerDialer)
+	innerAdapter, err := createAdapter(inner, proxydialer.New(outerAdapter, false))
 	if err != nil {
-		return nil, fmt.Errorf("create inner adapter: %w", err)
+		// inner 创建失败后 outer 已无调用方持有，必须立即释放。
+		outerAdapter.Close()
+		return nil, nil, fmt.Errorf("create inner adapter: %w", err)
 	}
 
-	return buildTransport(innerAdapter), nil
+	return buildTransport(innerAdapter), func() error {
+		// 先关闭 inner，再关闭承载其链路的 outer；两者都必须尝试关闭。
+		if err := innerAdapter.Close(); err != nil {
+			outerAdapter.Close()
+			return err
+		}
+		return outerAdapter.Close()
+	}, nil
 }
 
 // createAdapter 从单条 YAML 代理配置创建 outbound.ProxyAdapter

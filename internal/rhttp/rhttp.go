@@ -60,7 +60,7 @@ func New(proxy string) *http.Client {
 	raw = append(raw, '}')
 
 	iface := store.SettingGet(model.SettingBindInterface)
-	transport, err := mihomo.NewTransport(raw, iface)
+	transport, _, err := mihomo.NewTransport(raw, nil, iface)
 	if err != nil {
 		return client
 	}
