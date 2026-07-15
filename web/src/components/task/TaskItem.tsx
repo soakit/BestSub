@@ -70,7 +70,7 @@ export function TaskItem({ task, onEdit, onDelete }: { task: Task; onEdit: (task
                     <div className="flex flex-1 items-end justify-end text-right text-xl leading-none text-foreground">
                         {progress && progress.step > 0 ? (
                             <div className="flex w-full items-end justify-between gap-3">
-                                <span className="min-w-0 truncate text-left">{task.steps[progress.step - 1].type === "download" ? "测速" : task.steps[progress.step - 1].type === "country" ? "落地" : "延迟"} {progress.step}/{task.steps.length}</span>
+                                <span className="min-w-0 truncate text-left">{task.steps[progress.step - 1].type === "speed" ? "测速" : task.steps[progress.step - 1].type === "country" ? "落地" : "延迟"} {progress.step}/{task.steps.length}</span>
                                 <span className="shrink-0">{progress.done}/{progress.total}</span>
                             </div>
                         ) : progress

@@ -46,14 +46,15 @@ function newStep(): TaskStep {
         type: "delay",
         params: defaultStepParams("delay"),
         concurrency: 8,
+        node_pool_delete: 0,
         pass: {},
         order: "none",
     };
 }
 
 function defaultStepParams(type: TaskStep["type"]) {
-    if (type === "download") return { url: "https://speed.cloudflare.com/__down?during=download&bytes=999999" };
-    if (type === "country") return { url: "https://speed.cloudflare.com/meta", country_field: "country" };
+    if (type === "speed") return { url: "https://speed.cloudflare.com/__down?during=download&bytes=999999" };
+    if (type === "country") return {};
     return { url: "https://gstatic.com/generate_204", timeout_ms: 10000, attempts: 1 };
 }
 
@@ -62,7 +63,7 @@ function keysToStrings(keys: Key | Key[] | null) {
 }
 
 function stepName(step: TaskStep) {
-    if (step.type === "download") return "测速";
+    if (step.type === "speed") return "测速";
     if (step.type === "country") return "落地";
     return "延迟";
 }
@@ -97,7 +98,16 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
     const [editingStep, setEditingStep] = useState<number | null>(null);
     const [formState, setFormState] = useState<TaskConfig>(
         task
-            ? { ...defaultConfig, ...task, steps: task.steps.map((step) => ({ ...step, params: { ...defaultStepParams(step.type), ...(step.params ?? {}) } })) }
+            ? {
+                ...defaultConfig,
+                ...task,
+                steps: task.steps.map((step) => ({
+                    ...step,
+                    params: step.type === "country"
+                        ? { timeout_ms: step.params?.timeout_ms }
+                        : { ...defaultStepParams(step.type), ...(step.params ?? {}) },
+                })),
+            }
             : { ...defaultConfig, steps: [newStep()] }
     );
     const [sourceRows, setSourceRows] = useState<TaskSourceType[]>(() => initialSourceRows(task));
@@ -434,32 +444,35 @@ function TaskStepFields({ step, onChange }: { step: TaskStep; onChange: (step: T
                 <Select.Popover>
                     <ListBox>
                         <ListBox.Item id="delay">延迟</ListBox.Item>
-                        <ListBox.Item id="download">测速</ListBox.Item>
+                        <ListBox.Item id="speed">测速</ListBox.Item>
                         <ListBox.Item id="country">落地</ListBox.Item>
                     </ListBox>
                 </Select.Popover>
             </Select>
-            <TextField value={step.params?.url ?? ""} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), url: value } })}>
-                <Label>请求地址</Label>
-                <Input variant="secondary" placeholder="https://example.com" />
-            </TextField>
-            <NumberField label="超时 ms" value={step.params?.timeout_ms} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), timeout_ms: value } })} />
-            <NumberField label="并发" value={step.concurrency} onChange={(value) => onChange({ ...step, concurrency: value })} />
-            <NumberField label="通过数量" value={step.pass.limit} onChange={(value) => onChange({ ...step, pass: { ...step.pass, limit: value } })} />
-            {step.type === "delay" && <NumberField label="尝试次数" value={step.params?.attempts} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), attempts: value } })} />}
-            {step.type === "download" && <NumberField label="读取字节" value={step.params?.max_bytes} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), max_bytes: value } })} />}
-            {step.type === "download" && <NumberField label="读取时长 ms" value={step.params?.max_duration_ms} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), max_duration_ms: value } })} />}
-            {step.type === "country" && (
-                <TextField value={step.params?.country_field ?? ""} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), country_field: value } })}>
-                    <Label>国家字段</Label>
-                    <Input variant="secondary" />
-                </TextField>
-            )}
             <Select className="w-full" variant="secondary" value={step.order || "none"} onChange={(key) => onChange({ ...step, order: String(key) as TaskStep["order"] })}>
                 <Label>处理顺序</Label>
                 <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
                 <Select.Popover><ListBox><ListBox.Item id="none">不排序</ListBox.Item><ListBox.Item id="delay">延迟优先</ListBox.Item><ListBox.Item id="speed">速度优先</ListBox.Item></ListBox></Select.Popover>
             </Select>
+            {step.type !== "country" && (
+                <TextField value={step.params?.url ?? ""} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), url: value } })}>
+                    <Label>请求地址</Label>
+                    <Input variant="secondary" placeholder="https://example.com" />
+                </TextField>
+            )}
+            <NumberField label="超时 ms" value={step.params?.timeout_ms} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), timeout_ms: value } })} />
+            <NumberField label="并发" value={step.concurrency} onChange={(value) => onChange({ ...step, concurrency: value })} />
+            <div className="flex items-center">
+                <span className="text-sm text-foreground">失败时删除订阅节点</span>
+                <div className="flex-1" />
+                <Switch isSelected={step.node_pool_delete === 1} onChange={() => onChange({ ...step, node_pool_delete: step.node_pool_delete === 1 ? 0 : 1 })}>
+                    <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
+                </Switch>
+            </div>
+            <NumberField label="通过数量" value={step.pass.limit} onChange={(value) => onChange({ ...step, pass: { ...step.pass, limit: value } })} />
+            {step.type === "delay" && <NumberField label="尝试次数" value={step.params?.attempts} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), attempts: value } })} />}
+            {step.type === "speed" && <NumberField label="最大读取 kb" value={step.params?.max_kb} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), max_kb: value } })} />}
+            {step.type === "speed" && <NumberField label="读取时长 ms" value={step.params?.max_duration_ms} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), max_duration_ms: value } })} />}
         </div>
     );
 }

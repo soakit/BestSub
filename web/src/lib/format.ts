@@ -1,4 +1,4 @@
-// 字节数转可读单位，用于流量与测速展示
+// 字节数转可读单位，用于流量展示
 export function formatBytes(bytes: number): string {
     if (bytes <= 0) return "0 B";
     const units = ["B", "KB", "MB", "GB", "TB"];

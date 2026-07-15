@@ -5,10 +5,9 @@ import type { Storage } from "./storage";
 
 export type TaskParams = {
     url: string;
-    country_field: string;
     timeout_ms: number;
     attempts: number;
-    max_bytes: number;
+    max_kb: number; // 最大读取量，单位 kb。
     max_duration_ms: number;
 };
 
@@ -16,8 +15,8 @@ export type TaskPass = {
     limit: number;
     min_delay: number;
     max_delay: number;
-    min_download_speed: number;
-    max_download_speed: number;
+    min_download_speed: number; // 最小下载速度，单位 kb/s。
+    max_download_speed: number; // 最大下载速度，单位 kb/s。
     include_country_codes: string[];
     exclude_country_codes: string[];
 };
@@ -25,9 +24,10 @@ export type TaskPass = {
 export type TaskOrder = "none" | "delay" | "speed";
 
 export type TaskStep = {
-    type: "delay" | "download" | "country";
+    type: "delay" | "speed" | "country";
     params?: Partial<TaskParams>;
     concurrency?: number;
+    node_pool_delete: number;
     pass: Partial<TaskPass>;
     order: TaskOrder;
 };
