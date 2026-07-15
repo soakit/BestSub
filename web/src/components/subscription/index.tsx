@@ -42,7 +42,7 @@ export default function Subscription() {
                 ) : subscriptions?.length === 0 ? (
                     <div className="flex flex-1 items-center justify-center text-sm text-foreground/60">暂无订阅</div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4">
                         {[...subscriptions!].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((sub) => (
                             <SubItem
                                 key={sub.id}
