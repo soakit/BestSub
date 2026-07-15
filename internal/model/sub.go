@@ -31,6 +31,15 @@ type Subscription struct {
 	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"` // 创建时间
 }
 
+// SubscriptionRef 是输入来源关联订阅的轻量模型。
+type SubscriptionRef struct {
+	ID string `gorm:"column:id;primaryKey;type:varchar(36)" json:"id"` // 订阅 ID
+}
+
+func (SubscriptionRef) TableName() string {
+	return "subscriptions"
+}
+
 type SubscriptionConfig struct {
 	UrlType            URLType           `gorm:"column:url_type;default:0" json:"url_type"`                                   // URL 类型: 0=直接获取, 1=链接列表
 	Url                []string          `gorm:"column:url;not null;type:json;serializer:json" json:"url" binding:"required"` // 订阅链接列表

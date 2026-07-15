@@ -11,34 +11,24 @@ import (
 	"github.com/bestruirui/bestsub/internal/model"
 )
 
-// nodePool: map[subID]map[fingerprint]*nodePoolNode
+// nodePool: map[subID]map[fingerprint]*model.NodeSnapshot
 // 外层 key 是订阅 ID，内层 key 是节点指纹，天然去重。
 var (
-	nodePoolLock sync.RWMutex                            // 保护 nodePool 的并发读写
-	nodePool     = map[string]map[uint64]*nodePoolNode{} // 内存节点池，按订阅 ID 和节点指纹分组
+	nodePoolLock sync.RWMutex                                  // 保护 nodePool 的并发读写
+	nodePool     = map[string]map[uint64]*model.NodeSnapshot{} // 内存节点池，按订阅 ID 和节点指纹分组
 )
-
-type nodePoolNode struct { // 节点池内部节点，保存原始节点和检测信息
-	Proxy []byte         // YAML 行内格式原始节点字节。
-	Info  model.NodeInfo // 节点测试信息，可独立更新。
-}
-
-type NodePoolItem struct { // 节点池导出项，用于检测后按指纹写回结果
-	Fingerprint uint64 // 节点指纹，用于定位节点池中的唯一节点。
-	Proxy       []byte // YAML 行内格式原始节点字节。
-}
 
 type NodePoolFilter struct { // 节点池筛选条件，0 值表示不限制对应条件
 	MinDelay            uint16   // 最小延迟，单位毫秒；0 表示不限制。
 	MaxDelay            uint16   // 最大延迟，单位毫秒；0 表示不限制。
-	MinDownloadSpeed    uint64   // 最小下载速度，单位 bytes/s；0 表示不限制。
-	MaxDownloadSpeed    uint64   // 最大下载速度，单位 bytes/s；0 表示不限制。
+	MinDownloadSpeed    uint32   // 最小下载速度，单位 kb/s；0 表示不限制。
+	MaxDownloadSpeed    uint32   // 最大下载速度，单位 kb/s；0 表示不限制。
 	IncludeCountryCodes []string // 非空时只保留这些 ISO 3166-1 alpha-2 国家代码。
 	ExcludeCountryCodes []string // 非空时排除这些 ISO 3166-1 alpha-2 国家代码。
 }
 
-// nodeFingerprint 从 YAML 行内格式 raw 中解析 type/server/port 计算节点指纹。
-func nodeFingerprint(raw []byte) uint64 {
+// NodeFingerprint 从 YAML 行内格式 raw 中解析节点身份字段并计算指纹。
+func NodeFingerprint(raw []byte) uint64 {
 	var key struct {
 		Type       string `yaml:"type"`
 		Server     string `yaml:"server"`
@@ -53,18 +43,18 @@ func nodeFingerprint(raw []byte) uint64 {
 
 // NodePoolAdd 向指定订阅新增节点，订阅内指纹重复时拒绝。
 func NodePoolAdd(subID string, proxy []byte) bool {
-	fp := nodeFingerprint(proxy)
+	fp := NodeFingerprint(proxy)
 
 	nodePoolLock.Lock()
 	defer nodePoolLock.Unlock()
 
 	if nodePool[subID] == nil {
-		nodePool[subID] = map[uint64]*nodePoolNode{}
+		nodePool[subID] = map[uint64]*model.NodeSnapshot{}
 	}
 	if _, dup := nodePool[subID][fp]; dup {
 		return false
 	}
-	nodePool[subID][fp] = &nodePoolNode{Proxy: proxy}
+	nodePool[subID][fp] = &model.NodeSnapshot{Raw: &model.NodeRaw{Text: string(proxy), Fingerprint: fp}}
 	return true
 }
 
@@ -92,8 +82,8 @@ func NodePoolUpdateDelay(subID string, fingerprint uint64, delay uint16) bool {
 	return false
 }
 
-// NodePoolUpdateDownloadSpeed 更新节点下载速度，单位 bytes/s。
-func NodePoolUpdateDownloadSpeed(subID string, fingerprint uint64, speed uint64) bool {
+// NodePoolUpdateDownloadSpeed 更新节点下载速度，单位 kb/s。
+func NodePoolUpdateDownloadSpeed(subID string, fingerprint uint64, speed uint32) bool {
 	nodePoolLock.Lock()
 	defer nodePoolLock.Unlock()
 
@@ -146,8 +136,8 @@ func NodePoolCount(subID string) int {
 	return len(nodePool[subID])
 }
 
-// NodePoolListBySubscription 按订阅 ID 返回节点指纹和原始字节列表。
-func NodePoolListBySubscription(subID string) []NodePoolItem {
+// NodePoolListBySubscription 按订阅 ID 返回共享原文和检测信息。
+func NodePoolListBySubscription(subID string) []model.NodeSnapshot {
 	nodePoolLock.RLock()
 	defer nodePoolLock.RUnlock()
 
@@ -155,18 +145,15 @@ func NodePoolListBySubscription(subID string) []NodePoolItem {
 	if sp == nil {
 		return nil
 	}
-	result := make([]NodePoolItem, 0, len(sp))
-	for fingerprint, n := range sp {
-		result = append(result, NodePoolItem{
-			Fingerprint: fingerprint,
-			Proxy:       n.Proxy,
-		})
+	result := make([]model.NodeSnapshot, 0, len(sp))
+	for _, n := range sp {
+		result = append(result, *n)
 	}
 	return result
 }
 
 // NodePoolFilterNodes 按节点测试信息筛选指定订阅的节点。
-func NodePoolFilterNodes(subID string, filter NodePoolFilter) [][]byte {
+func NodePoolFilterNodes(subID string, filter NodePoolFilter) []*model.NodeRaw {
 	includeCountries := map[string]struct{}{}
 	for _, cc := range filter.IncludeCountryCodes {
 		includeCountries[strings.ToUpper(cc)] = struct{}{}
@@ -183,7 +170,7 @@ func NodePoolFilterNodes(subID string, filter NodePoolFilter) [][]byte {
 	if sp == nil {
 		return nil
 	}
-	result := make([][]byte, 0, len(sp))
+	result := make([]*model.NodeRaw, 0, len(sp))
 	for _, n := range sp {
 		if filter.MinDelay > 0 && n.Info.Delay < filter.MinDelay {
 			continue
@@ -205,7 +192,7 @@ func NodePoolFilterNodes(subID string, filter NodePoolFilter) [][]byte {
 		if _, ok := excludeCountries[strings.ToUpper(n.Info.CountryCode)]; ok {
 			continue
 		}
-		result = append(result, n.Proxy)
+		result = append(result, n.Raw)
 	}
 	return result
 }

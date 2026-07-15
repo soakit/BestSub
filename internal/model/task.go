@@ -28,69 +28,32 @@ type TaskConfig struct {
 
 // TaskInput 保存任务输入来源，关联项只保留 ID，避免任务缓存重复保存完整订阅和节点内容。
 type TaskInput struct {
-	Subscriptions           []TaskSubscription `gorm:"many2many:task_input_subscriptions;constraint:OnDelete:CASCADE" json:"subscriptions"`                                            // 指定订阅的内存节点池
-	Nodes                   []TaskNode         `gorm:"many2many:task_input_nodes;constraint:OnDelete:CASCADE" json:"nodes"`                                                            // 指定单独节点
-	Tags                    []TaskTag          `gorm:"many2many:task_input_tags;constraint:OnDelete:CASCADE" json:"tags"`                                                              // 指定 tag 下的订阅和单独节点
-	ResultTasks             []TaskInputResult  `gorm:"many2many:task_input_results;joinForeignKey:TaskID;joinReferences:ResultTaskID;constraint:OnDelete:CASCADE" json:"result_tasks"` // 其他任务最近一次内存结果
-	CustomLandingNodeEnable uint8              `gorm:"column:custom_landing_node_enable;default:0" json:"custom_landing_node_enable"`                                                  // 是否使用自定义落地节点检测前置节点
-	LandingSubscriptions    []TaskSubscription `gorm:"many2many:task_landing_subscriptions;constraint:OnDelete:CASCADE" json:"landing_subscriptions"`                                  // 自定义落地订阅来源
-	LandingNodes            []TaskNode         `gorm:"many2many:task_landing_nodes;constraint:OnDelete:CASCADE" json:"landing_nodes"`                                                  // 自定义落地节点来源
+	Subscriptions           []SubscriptionRef `gorm:"many2many:task_input_subscriptions;constraint:OnDelete:CASCADE" json:"subscriptions"`                                            // 指定订阅的内存节点池
+	Nodes                   []NodeRef         `gorm:"many2many:task_input_nodes;constraint:OnDelete:CASCADE" json:"nodes"`                                                            // 指定单独节点
+	Tags                    []TagRef          `gorm:"many2many:task_input_tags;constraint:OnDelete:CASCADE" json:"tags"`                                                              // 指定 tag 下的订阅和单独节点
+	ResultTasks             []TaskRef         `gorm:"many2many:task_input_results;joinForeignKey:TaskID;joinReferences:ResultTaskID;constraint:OnDelete:CASCADE" json:"result_tasks"` // 其他任务最近一次内存结果
+	CustomLandingNodeEnable uint8             `gorm:"column:custom_landing_node_enable;default:0" json:"custom_landing_node_enable"`                                                  // 是否使用自定义落地节点检测前置节点
+	LandingSubscriptions    []SubscriptionRef `gorm:"many2many:task_landing_subscriptions;constraint:OnDelete:CASCADE" json:"landing_subscriptions"`                                  // 自定义落地订阅来源
+	LandingNodes            []NodeRef         `gorm:"many2many:task_landing_nodes;constraint:OnDelete:CASCADE" json:"landing_nodes"`                                                  // 自定义落地节点来源
 }
 
-// TaskSubscription 是任务关联订阅的轻量模型。
-type TaskSubscription struct {
-	ID string `gorm:"column:id;primaryKey;type:varchar(36)" json:"id"` // 订阅 ID
-}
-
-func (TaskSubscription) TableName() string {
-	return "subscriptions"
-}
-
-// TaskNode 是任务关联单独节点的轻量模型。
-type TaskNode struct {
-	ID string `gorm:"column:id;primaryKey;type:varchar(36)" json:"id"` // 单独节点 ID
-}
-
-func (TaskNode) TableName() string {
-	return "nodes"
-}
-
-// TaskTag 是任务关联标签的轻量模型。
-type TaskTag struct {
-	ID uint `gorm:"column:id;primaryKey;autoIncrement" json:"id"` // 标签 ID
-}
-
-func (TaskTag) TableName() string {
-	return "tags"
-}
-
-// TaskInputResult 是任务关联结果来源任务的轻量模型。
-type TaskInputResult struct {
+// TaskRef 是输入来源关联结果任务的轻量模型。
+type TaskRef struct {
 	ID string `gorm:"column:id;primaryKey;type:varchar(36)" json:"id"` // 结果来源任务 ID
 }
 
-func (TaskInputResult) TableName() string {
+func (TaskRef) TableName() string {
 	return "tasks"
 }
 
 // TaskStep 保存单个检测步骤。
 type TaskStep struct {
-	Type        probe.ProbeType `json:"type"`                  // 步骤类型: delay/download/country
-	Params      json.RawMessage `json:"params,omitempty"`      // 检测模块参数，由 pkg/probe 内部按类型解析
-	Concurrency int             `json:"concurrency,omitempty"` // 本步骤并发数
-	Pass        TaskPass        `json:"pass,omitempty"`        // 通过条件
-	Order       string          `json:"order,omitempty"`       // 处理顺序: none/delay/speed
-}
-
-// TaskPass 保存单个检测步骤的通过条件。
-type TaskPass struct {
-	Limit               int      `json:"limit,omitempty"`                 // 本步骤通过节点达到该数量后停止处理剩余节点
-	MinDelay            uint16   `json:"min_delay,omitempty"`             // 最小延迟，单位毫秒
-	MaxDelay            uint16   `json:"max_delay,omitempty"`             // 最大延迟，单位毫秒
-	MinDownloadSpeed    uint64   `json:"min_download_speed,omitempty"`    // 最小下载速度，单位 bytes/s
-	MaxDownloadSpeed    uint64   `json:"max_download_speed,omitempty"`    // 最大下载速度，单位 bytes/s
-	IncludeCountryCodes []string `json:"include_country_codes,omitempty"` // 只保留这些国家代码
-	ExcludeCountryCodes []string `json:"exclude_country_codes,omitempty"` // 排除这些国家代码
+	Type           probe.ProbeType `json:"type"`                       // 步骤类型: delay/speed/country
+	Params         json.RawMessage `json:"params,omitempty"`           // 检测模块参数，由 pkg/probe 内部按类型解析
+	Concurrency    int             `json:"concurrency,omitempty"`      // 本步骤并发数
+	Pass           NodeFilter      `json:"pass,omitempty"`             // 通过条件
+	Order          string          `json:"order,omitempty"`            // 处理顺序: none/delay/speed
+	NodePoolDelete uint8           `json:"node_pool_delete,omitempty"` // 探测失败时是否从订阅节点池删除节点
 }
 
 // StorageConfig 保存任务完成后的储存配置。
@@ -100,12 +63,6 @@ type StorageConfig struct {
 	Storage              Storage `gorm:"foreignKey:StorageID;references:ID" json:"storage,omitempty"`           // 储存目标
 	SavePath             string  `gorm:"column:save_path;type:text" json:"save_path"`                           // 储存路径
 	NodeRenameExpression string  `gorm:"column:node_rename_expression;type:text" json:"node_rename_expression"` // 节点重命名表达式
-}
-
-// TaskResultGroup 保存单个订阅分组内的结果节点。
-type TaskResultGroup struct {
-	SubscriptionID string   `json:"subscription_id"` // 订阅 ID
-	Fingerprints   []uint64 `json:"fingerprints"`    // 该订阅内通过检测的节点指纹
 }
 
 func (t *Task) BeforeCreate(tx *gorm.DB) error {
