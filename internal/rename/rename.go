@@ -10,14 +10,14 @@ import (
 )
 
 type templateData struct { // 重命名模板的渲染上下文。
-	Count         uint32            // 最终输出顺序中的序号。
+	Index         uint32            // 最终输出顺序中的序号。
 	Delay         uint32            // 延迟，单位毫秒。
 	DownloadSpeed uint32            // 下载速度，单位 kb/s。
 	Country       countries.Country // 节点落地国家信息。
 }
 
 // Rename 按 Go 模板渲染节点名称。
-func Rename(info model.NodeInfo, count uint32, expression string) (string, error) {
+func Rename(info model.NodeInfo, index uint32, expression string) (string, error) {
 	tmpl, err := template.New("node").Funcs(template.FuncMap{
 		"add": func(x, y uint32) uint32 { return x + y },
 		"sub": func(x, y uint32) uint32 {
@@ -46,7 +46,7 @@ func Rename(info model.NodeInfo, count uint32, expression string) (string, error
 
 	var result bytes.Buffer
 	if err := tmpl.Execute(&result, templateData{
-		Count:         count,
+		Index:         index,
 		Delay:         uint32(info.Delay),
 		DownloadSpeed: info.DownloadSpeed,
 		Country:       countries.Get(info.CountryCode),

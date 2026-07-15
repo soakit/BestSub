@@ -6,6 +6,7 @@ import { Appearance } from "./Appearance";
 import { Dns } from "./Dns";
 import { Storage } from "./Storage";
 import { Tag } from "./Tag";
+import { Rename } from "./Rename";
 
 export default function Setting() {
   const { data, isLoading } = useSettingList();
@@ -34,6 +35,7 @@ export default function Setting() {
         <General val={val} set={set} />
         <Dns val={val} set={set} />
         <Storage />
+        <Rename />
         <Tag />
       </div>
     </PageLayout>
