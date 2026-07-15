@@ -23,6 +23,22 @@ export type TaskPass = {
 
 export type TaskOrder = "none" | "delay" | "speed";
 
+export const taskSaveFormats = [ // 任务结果支持的保存格式，与后端转换目标保持一致。
+    "QuantumultX",
+    "Surge",
+    "Loon",
+    "SurgeMac",
+    "Mihomo",
+    "URI",
+    "V2Ray",
+    "ShadowRocket",
+    "Surfboard",
+    "singbox",
+    "Egern",
+] as const;
+
+export type TaskSaveFormat = (typeof taskSaveFormats)[number];
+
 export type TaskStep = {
     type: "delay" | "speed" | "country";
     params?: Partial<TaskParams>;
@@ -36,6 +52,7 @@ export type StorageConfig = {
     storage_enable: number;
     storage_id: string;
     storage?: Storage;
+    save_format: TaskSaveFormat;
     save_path: string;
     node_rename_expression: string;
 };

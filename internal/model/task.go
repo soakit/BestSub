@@ -61,6 +61,7 @@ type StorageConfig struct {
 	StorageEnable        uint8   `gorm:"column:storage_enable;default:0" json:"storage_enable"`                 // 是否在任务完成后储存
 	StorageID            string  `gorm:"column:storage_id;type:varchar(36)" json:"storage_id"`                  // 储存目标 ID
 	Storage              Storage `gorm:"foreignKey:StorageID;references:ID" json:"storage,omitempty"`           // 储存目标
+	SaveFormat           string  `gorm:"column:save_format;type:varchar(32)" json:"save_format"`                // 保存格式，对应订阅转换目标
 	SavePath             string  `gorm:"column:save_path;type:text" json:"save_path"`                           // 储存路径
 	NodeRenameExpression string  `gorm:"column:node_rename_expression;type:text" json:"node_rename_expression"` // 节点重命名表达式
 }

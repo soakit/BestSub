@@ -1,12 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Key } from "@heroui/react";
-import { Autocomplete, Button, Disclosure, Drawer, Form, Input, Label, ListBox, Select, Switch, Tag, TagGroup, TextField } from "@heroui/react";
-import { Pencil, Plus, TrashBin } from "@gravity-ui/icons";
+import { Autocomplete, Button, Disclosure, Drawer, Dropdown, Form, Input, Label, ListBox, Select, Switch, Tag, TagGroup, TextArea, TextField } from "@heroui/react";
+import { FileArrowDown, Pencil, Plus, TrashBin } from "@gravity-ui/icons";
 import { useNodes } from "../../api/node";
+import { useRenamePreview, useRenameTemplates } from "../../api/rename";
 import { useStorages } from "../../api/storage";
 import { useSubscription } from "../../api/sub";
 import { useTags } from "../../api/tags";
-import { type Task, type TaskConfig, type TaskStep, useCreateTask, useUpdateTask } from "../../api/task";
+import { taskSaveFormats, type Task, type TaskConfig, type TaskSaveFormat, type TaskStep, useCreateTask, useUpdateTask } from "../../api/task";
 
 type TaskSourceType = "subscription" | "node" | "tag" | "result_task";
 type LandingSourceType = "subscription" | "node";
@@ -37,6 +38,7 @@ const defaultConfig: TaskConfig = {
     landing_nodes: [],
     storage_enable: 0,
     storage_id: "",
+    save_format: "Mihomo",
     save_path: "",
     node_rename_expression: "",
 };
@@ -93,6 +95,8 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
     const { data: nodes = [] } = useNodes();
     const { data: tags = [] } = useTags();
     const { data: storages = [] } = useStorages();
+    const { data: renameTemplates = [] } = useRenameTemplates();
+    const renamePreview = useRenamePreview();
     const createTask = useCreateTask();
     const updateTask = useUpdateTask();
     const [editingStep, setEditingStep] = useState<number | null>(null);
@@ -113,6 +117,14 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
     const [sourceRows, setSourceRows] = useState<TaskSourceType[]>(() => initialSourceRows(task));
     const [landingSourceRows, setLandingSourceRows] = useState<LandingSourceType[]>(() => initialLandingRows(task));
     const resultTasks = useMemo(() => tasks.filter((t) => t.id !== task?.id), [tasks, task?.id]);
+
+    useEffect(() => {
+        // 输入变化时清掉旧结果并延迟请求，避免把过期预览显示为当前表达式。
+        renamePreview.reset();
+        if (formState.storage_enable !== 1 || !formState.node_rename_expression.trim()) return;
+        const timeout = window.setTimeout(() => renamePreview.mutate(formState.node_rename_expression.trim()), 400);
+        return () => window.clearTimeout(timeout);
+    }, [formState.storage_enable, formState.node_rename_expression]);
 
     const setForm = <K extends keyof TaskConfig>(key: K, value: TaskConfig[K]) => {
         setFormState((prev) => ({ ...prev, [key]: value }));
@@ -372,13 +384,54 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
                             </ListBox>
                         </Select.Popover>
                     </Select>
+                    <Select className="w-full" variant="secondary" value={formState.save_format} onChange={(key) => setForm("save_format", String(key) as TaskSaveFormat)}>
+                        <Label>保存格式</Label>
+                        <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+                        <Select.Popover>
+                            <ListBox>
+                                {taskSaveFormats.map((format) => (
+                                    <ListBox.Item key={format} id={format} textValue={format}>{format}</ListBox.Item>
+                                ))}
+                            </ListBox>
+                        </Select.Popover>
+                    </Select>
+                    <TextField value={formState.node_rename_expression} onChange={(value) => setForm("node_rename_expression", value)}>
+                        <div className="flex items-center gap-2">
+                            <Label className="flex-1">重命名表达式</Label>
+                            <Dropdown>
+                                <Button isIconOnly type="button" size="sm" variant="ghost" isDisabled={renameTemplates.length === 0}>
+                                    <FileArrowDown className="size-4" />
+                                </Button>
+                                <Dropdown.Popover className="min-w-64">
+                                    <Dropdown.Menu onAction={(key) => {
+                                        const template = renameTemplates.find((template) => template.id === Number(key));
+                                        if (template) setForm("node_rename_expression", template.expression);
+                                    }}>
+                                        {[...renameTemplates].sort((a, b) => b.id - a.id).map((template) => (
+                                            <Dropdown.Item key={template.id} id={String(template.id)} textValue={template.preview}>
+                                                <Label>{template.preview}</Label>
+                                            </Dropdown.Item>
+                                        ))}
+                                    </Dropdown.Menu>
+                                </Dropdown.Popover>
+                            </Dropdown>
+                        </div>
+                        <TextArea rows={2} name="node_rename_expression" placeholder="{{.Country.NameZh}}-{{.Index}}" variant="secondary" />
+                        {formState.storage_enable === 1 && formState.node_rename_expression.trim() && (
+                            <span className={`text-xs ${renamePreview.isError ? "text-danger" : "text-muted"}`}>
+                                {renamePreview.isPending
+                                    ? "预览中"
+                                    : renamePreview.isError
+                                        ? renamePreview.error.message
+                                        : renamePreview.data
+                                            ? `预览：${renamePreview.data.result}`
+                                            : null}
+                            </span>
+                        )}
+                    </TextField>
                     <TextField value={formState.save_path} onChange={(value) => setForm("save_path", value)}>
                         <Label>保存路径</Label>
                         <Input name="save_path" placeholder="/nodes.yaml" variant="secondary" />
-                    </TextField>
-                    <TextField value={formState.node_rename_expression} onChange={(value) => setForm("node_rename_expression", value)}>
-                        <Label>重命名表达式</Label>
-                        <Input name="node_rename_expression" placeholder="{{index}}-{{name}}" variant="secondary" />
                     </TextField>
                 </Disclosure.Content>
             </Disclosure>
