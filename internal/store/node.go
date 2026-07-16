@@ -21,6 +21,7 @@ func initNode() error {
 }
 
 func NodeCreate(node *model.Node) error {
+	node.TrafficMultiplier = parseTrafficMultiplier(node.Content)
 	if err := db.Create(node).Error; err != nil {
 		return err
 	}
@@ -71,10 +72,8 @@ func NodeUpdateInfo(id string, info model.NodeInfo) error {
 }
 
 func NodeUpdate(id string, node *model.Node) error {
-	if err := db.Model(&model.Node{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"name":    node.Name,
-		"content": node.Content,
-	}).Error; err != nil {
+	node.TrafficMultiplier = parseTrafficMultiplier(node.Content)
+	if err := db.Model(&model.Node{}).Where("id = ?", id).Select("name", "content", "traffic_multiplier").Updates(node).Error; err != nil {
 		return err
 	}
 	if err := TagSetNodeNames(id, node.TagNames); err != nil {
@@ -84,6 +83,7 @@ func NodeUpdate(id string, node *model.Node) error {
 	if n, ok := nodeCache.Get(id); ok {
 		n.Name = node.Name
 		n.Content = node.Content
+		n.TrafficMultiplier = node.TrafficMultiplier
 		nodeCache.Set(id, n)
 	}
 	return nil

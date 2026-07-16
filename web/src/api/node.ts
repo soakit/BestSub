@@ -9,8 +9,9 @@ export type NodeConfig = {
 
 export type NodeInfo = {
     delay: number;
-    download_speed: number;
+    download_speed: number; // 下载速度，单位 kb/s。
     country_code: string;
+    traffic_multiplier: number;
 };
 
 export type Node = {

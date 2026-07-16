@@ -10,7 +10,7 @@ import (
 type Node struct {
 	ID         string    `gorm:"column:id;primaryKey;type:varchar(36)" json:"id"` // ID
 	NodeConfig           // 节点配置
-	NodeInfo             // 节点测试信息
+	NodeInfo             // 节点附加信息
 	CreatedAt  time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"` // 创建时间
 }
 
@@ -29,10 +29,11 @@ type NodeConfig struct {
 	Content  string   `gorm:"column:content;type:text" json:"content" binding:"required"` // 节点内容
 }
 
-type NodeInfo struct {
-	Delay         uint16 `gorm:"column:delay;default:0" json:"delay"`                   // 延迟，单位毫秒；0 表示未知或未测试
-	DownloadSpeed uint32 `gorm:"column:download_speed;default:0" json:"download_speed"` // 下载速度，单位 kb/s；0 表示未知或未测试
-	CountryCode   string `gorm:"column:country_code;type:char(2)" json:"country_code"`  // 落地国家，ISO 3166-1 alpha-2 两位字母代码
+type NodeInfo struct { // 保存节点检测结果和从名称提取的附加信息
+	Delay             uint16  `gorm:"column:delay;default:0" json:"delay"`                           // 延迟，单位毫秒；0 表示未知或未测试
+	DownloadSpeed     uint32  `gorm:"column:download_speed;default:0" json:"download_speed"`         // 下载速度，单位 kb/s；0 表示未知或未测试
+	CountryCode       string  `gorm:"column:country_code;type:char(2)" json:"country_code"`          // 落地国家，ISO 3166-1 alpha-2 两位字母代码
+	TrafficMultiplier float32 `gorm:"column:traffic_multiplier;default:1" json:"traffic_multiplier"` // 流量扣费倍率；节点名称未标注时为 1
 }
 
 // NodeFilter 保存任务步骤和分享共同使用的节点筛选条件。
@@ -51,9 +52,9 @@ type NodeRaw struct { // 可在节点池、任务和分享之间复用的不可�
 	Fingerprint uint64 // 按既有 NodeFingerprint 算法生成的节点指纹。
 }
 
-type NodeSnapshot struct { // 节点原文与一组检测信息的运行时快照
+type NodeSnapshot struct { // 节点原文与一组附加信息的运行时快照
 	Raw  *NodeRaw // 可共享的不可变节点原文。
-	Info NodeInfo // 当前或任务完成时的检测信息。
+	Info NodeInfo // 当前或任务完成时的节点附加信息。
 }
 
 func (n *Node) BeforeCreate(tx *gorm.DB) error {
