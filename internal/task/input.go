@@ -61,6 +61,7 @@ func expandTaskInput(task model.Task) ([]stepNode, error) {
 			nodes = append(nodes, stepNode{
 				SubscriptionID: sub.ID,
 				Raw:            item.Raw,
+				Info:           item.Info,
 			})
 		}
 	}

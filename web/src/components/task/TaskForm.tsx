@@ -50,6 +50,7 @@ function newStep(): TaskStep {
         params: defaultStepParams("delay"),
         concurrency: 8,
         node_pool_delete: 0,
+        skip_existing: 0,
         pass: {},
         order: "none",
     };
@@ -532,6 +533,13 @@ function TaskStepFields({ step, onChange }: { step: TaskStep; onChange: (step: T
             )}
             <NumberField label="超时 ms" value={step.params?.timeout_ms} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), timeout_ms: value } })} />
             <NumberField label="并发" value={step.concurrency} onChange={(value) => onChange({ ...step, concurrency: value })} />
+            <div className="flex items-center">
+                <span className="text-sm text-foreground">跳过已有检测结果</span>
+                <div className="flex-1" />
+                <Switch isSelected={step.skip_existing === 1} onChange={() => onChange({ ...step, skip_existing: step.skip_existing === 1 ? 0 : 1 })}>
+                    <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
+                </Switch>
+            </div>
             <div className="flex items-center">
                 <span className="text-sm text-foreground">失败时删除订阅节点</span>
                 <div className="flex-1" />

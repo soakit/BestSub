@@ -13,7 +13,8 @@ import (
 type Task struct {
 	ID string `gorm:"column:id;primaryKey;type:varchar(36)" json:"id"` // ID
 	TaskConfig
-	FinishedAt time.Time `gorm:"column:finished_at" json:"finished_at"` // 最近一次运行完成时间
+	CreateAt   time.Time `gorm:"column:create_at;autoCreateTime" json:"create_at"` // 创建时间
+	FinishedAt time.Time `gorm:"column:finished_at" json:"finished_at"`            // 最近一次运行完成时间
 }
 
 // TaskConfig 保存任务基础配置和外部输入引用。
@@ -55,6 +56,7 @@ type TaskStep struct {
 	Pass           NodeFilter      `json:"pass,omitempty"`             // 通过条件
 	Order          string          `json:"order,omitempty"`            // 处理顺序: none/delay/speed
 	NodePoolDelete uint8           `json:"node_pool_delete,omitempty"` // 探测失败时是否从订阅节点池删除节点
+	SkipExisting   uint8           `json:"skip_existing,omitempty"`    // 对应检测结果已存在时是否跳过本步骤探测
 }
 
 // StorageConfig 保存任务完成后的储存配置。

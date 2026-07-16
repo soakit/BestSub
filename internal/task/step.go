@@ -91,12 +91,33 @@ func runStep(ctx context.Context, taskID string, step model.TaskStep, nodes, lan
 }
 
 func runStepNode(ctx context.Context, step model.TaskStep, node stepNode, landingNodes []stepNode) (stepNode, error) {
+	if step.SkipExisting == 1 {
+		switch step.Type {
+		case probe.TypeDelay:
+			if node.Info.Delay > 0 {
+				return node, nil
+			}
+		case probe.TypeSpeed:
+			if node.Info.DownloadSpeed > 0 {
+				return node, nil
+			}
+		case probe.TypeCountry:
+			if strings.TrimSpace(node.Info.CountryCode) != "" {
+				return node, nil
+			}
+		}
+	}
 	if len(landingNodes) == 0 {
-		transport, err := mihomo.NewTransport(node.Proxy, store.SettingGet(model.SettingBindInterface))
+		transport, closeProxy, err := mihomo.NewTransport([]byte(node.Raw.Text), nil, store.SettingGet(model.SettingBindInterface))
 		if err != nil {
 			return node, err
 		}
-		defer transport.CloseIdleConnections()
+		defer func() {
+			transport.CloseIdleConnections()
+			if err := closeProxy(); err != nil {
+				log.Errorf("close task node proxy error: %v", err)
+			}
+		}()
 		return runProbe(ctx, step, node, &http.Client{Transport: transport})
 	}
 
@@ -106,22 +127,26 @@ func runStepNode(ctx context.Context, step model.TaskStep, node stepNode, landin
 		if err := ctx.Err(); err != nil {
 			return node, err
 		}
-		transport, err := mihomo.NewChainedTransport(node.Proxy, landing.Proxy, store.SettingGet(model.SettingBindInterface))
+		transport, closeProxy, err := mihomo.NewTransport([]byte(node.Raw.Text), []byte(landing.Raw.Text), store.SettingGet(model.SettingBindInterface))
 		if err != nil {
 			lastErr = err
 			continue
 		}
 		next, err := runProbe(ctx, step, node, &http.Client{Transport: transport})
+		// 每个候选节点探测结束后立即释放内外层代理资源。
 		transport.CloseIdleConnections()
+		if err := closeProxy(); err != nil {
+			log.Errorf("close task node proxy error: %v", err)
+		}
 		if err != nil {
 			lastErr = err
 			continue
 		}
-		if best.Proxy == nil || betterStepNode(step, next, best) {
+		if best.Raw == nil || betterStepNode(step, next, best) {
 			best = next
 		}
 	}
-	if best.Proxy != nil {
+	if best.Raw != nil {
 		return best, nil
 	}
 	return node, lastErr
@@ -130,16 +155,13 @@ func runStepNode(ctx context.Context, step model.TaskStep, node stepNode, landin
 func runProbe(ctx context.Context, step model.TaskStep, node stepNode, client *http.Client) (stepNode, error) {
 	switch step.Type {
 	case probe.TypeDelay:
-		var delay uint64
+		var delay uint16
 		if err := probe.Run(ctx, step.Type, client, step.Params, &delay); err != nil {
 			return node, err
 		}
-		if delay > uint64(^uint16(0)) {
-			return node, fmt.Errorf("delay overflow: %d", delay)
-		}
-		node.Info.Delay = uint16(delay)
-	case probe.TypeDownload:
-		var speed uint64
+		node.Info.Delay = delay
+	case probe.TypeSpeed:
+		var speed uint32
 		if err := probe.Run(ctx, step.Type, client, step.Params, &speed); err != nil {
 			return node, err
 		}
@@ -161,14 +183,14 @@ func writeStepSuccess(step model.TaskStep, node stepNode) error {
 		var ok bool
 		switch step.Type {
 		case probe.TypeDelay:
-			ok = store.NodePoolUpdateDelay(node.SubscriptionID, node.Fingerprint, node.Info.Delay)
-		case probe.TypeDownload:
-			ok = store.NodePoolUpdateDownloadSpeed(node.SubscriptionID, node.Fingerprint, node.Info.DownloadSpeed)
+			ok = store.NodePoolUpdateDelay(node.SubscriptionID, node.Raw.Fingerprint, node.Info.Delay)
+		case probe.TypeSpeed:
+			ok = store.NodePoolUpdateDownloadSpeed(node.SubscriptionID, node.Raw.Fingerprint, node.Info.DownloadSpeed)
 		case probe.TypeCountry:
-			ok = store.NodePoolUpdateCountryCode(node.SubscriptionID, node.Fingerprint, node.Info.CountryCode)
+			ok = store.NodePoolUpdateCountryCode(node.SubscriptionID, node.Raw.Fingerprint, node.Info.CountryCode)
 		}
 		if !ok {
-			return fmt.Errorf("node pool item not found: %s %d", node.SubscriptionID, node.Fingerprint)
+			return fmt.Errorf("node pool item not found: %s %d", node.SubscriptionID, node.Raw.Fingerprint)
 		}
 	}
 	if node.NodeID != "" {
@@ -178,8 +200,8 @@ func writeStepSuccess(step model.TaskStep, node stepNode) error {
 }
 
 func handleStepFailure(step model.TaskStep, node stepNode) {
-	if node.SubscriptionID != "" {
-		store.NodePoolDelete(node.SubscriptionID, node.Fingerprint)
+	if node.SubscriptionID != "" && step.NodePoolDelete == 1 {
+		store.NodePoolDelete(node.SubscriptionID, node.Raw.Fingerprint)
 		return
 	}
 	if node.NodeID == "" {
@@ -188,7 +210,7 @@ func handleStepFailure(step model.TaskStep, node stepNode) {
 	switch step.Type {
 	case probe.TypeDelay:
 		node.Info.Delay = 0
-	case probe.TypeDownload:
+	case probe.TypeSpeed:
 		node.Info.DownloadSpeed = 0
 	case probe.TypeCountry:
 		node.Info.CountryCode = ""
@@ -226,7 +248,7 @@ func passStep(step model.TaskStep, node stepNode) bool {
 	case probe.TypeDelay:
 		return (step.Pass.MinDelay == 0 || node.Info.Delay >= step.Pass.MinDelay) &&
 			(step.Pass.MaxDelay == 0 || node.Info.Delay <= step.Pass.MaxDelay)
-	case probe.TypeDownload:
+	case probe.TypeSpeed:
 		return (step.Pass.MinDownloadSpeed == 0 || node.Info.DownloadSpeed >= step.Pass.MinDownloadSpeed) &&
 			(step.Pass.MaxDownloadSpeed == 0 || node.Info.DownloadSpeed <= step.Pass.MaxDownloadSpeed)
 	case probe.TypeCountry:
@@ -241,7 +263,7 @@ func passStep(step model.TaskStep, node stepNode) bool {
 
 func validateStep(step model.TaskStep) error {
 	switch step.Type {
-	case probe.TypeDelay, probe.TypeDownload, probe.TypeCountry:
+	case probe.TypeDelay, probe.TypeSpeed, probe.TypeCountry:
 	default:
 		return fmt.Errorf("unknown task step type: %s", step.Type)
 	}
@@ -257,7 +279,7 @@ func betterStepNode(step model.TaskStep, next, best stepNode) bool {
 	switch step.Type {
 	case probe.TypeDelay:
 		return next.Info.Delay < best.Info.Delay
-	case probe.TypeDownload:
+	case probe.TypeSpeed:
 		return next.Info.DownloadSpeed > best.Info.DownloadSpeed
 	}
 	return false

@@ -44,6 +44,7 @@ export type TaskStep = {
     params?: Partial<TaskParams>;
     concurrency?: number;
     node_pool_delete: number;
+    skip_existing: number; // 对应检测结果已存在时是否跳过本步骤探测。
     pass: Partial<TaskPass>;
     order: TaskOrder;
 };
@@ -90,6 +91,7 @@ export type TaskInputResult = {
 
 export type Task = {
     id: string;
+    create_at: string;
     finished_at: string;
 } & TaskConfig;
 

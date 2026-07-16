@@ -32,7 +32,7 @@ export default function TaskPage() {
                     <div className="flex flex-1 items-center justify-center text-sm text-foreground/60">暂无任务</div>
                 ) : (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4">
-                        {tasks!.map((task) => (
+                        {[...tasks!].sort((a, b) => new Date(b.create_at).getTime() - new Date(a.create_at).getTime()).map((task) => (
                             <TaskItem
                                 key={task.id}
                                 task={task}
