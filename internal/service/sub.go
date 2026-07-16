@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,7 +49,10 @@ func RefreshSubscription(id string) error {
 	}
 
 	go func() {
-		defer mu.Unlock()
+		defer func() {
+			mu.Unlock()
+			runtime.GC()
+		}()
 
 		proxy := sub.ProxyUrl
 		switch sub.ProxyMode {
@@ -255,17 +259,18 @@ func refreshOne(subID, rawUrl string, header map[string]string, proxy string) (u
 		}
 	}
 
-	convBody, err := Convert(body, "mihomo")
+	convBody, err := Convert(body, ConvertTargetMihomo)
 	if err != nil {
 		return 0, status, fmt.Errorf("convert: %w", err)
 	}
 
 	var nodeNum uint32
 	for _, line := range bytes.Split(convBody, []byte("\n"))[1:] {
-		raw := bytes.TrimPrefix(line, []byte("  - "))
-		cp := make([]byte, len(raw))
-		copy(cp, raw)
-		if store.NodePoolAdd(subID, cp) {
+		raw := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("  - ")))
+		if len(raw) == 0 {
+			continue
+		}
+		if store.NodePoolAdd(subID, raw) {
 			nodeNum++
 		}
 	}

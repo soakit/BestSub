@@ -12,8 +12,24 @@ import (
 	"github.com/bestruirui/bestsub/internal/store"
 )
 
+type ConvertTarget string
+
+const (
+	ConvertTargetQuantumX     ConvertTarget = "QuantumultX"
+	ConvertTargetSurge        ConvertTarget = "Surge"
+	ConvertTargetLoon         ConvertTarget = "Loon"
+	ConvertTargetSurgeMac     ConvertTarget = "SurgeMac"
+	ConvertTargetMihomo       ConvertTarget = "Mihomo"
+	ConvertTargetURI          ConvertTarget = "URI"
+	ConvertTargetV2Ray        ConvertTarget = "V2Ray"
+	ConvertTargetShadowRocket ConvertTarget = "ShadowRocket"
+	ConvertTargetSurfboard    ConvertTarget = "Surfboard"
+	ConvertTargetSingbox      ConvertTarget = "singbox"
+	ConvertTargetEgern        ConvertTarget = "Egern"
+)
+
 // Convert 通过转换服务将订阅内容转为目标格式
-func Convert(content []byte, target string) ([]byte, error) {
+func Convert(content []byte, target ConvertTarget) ([]byte, error) {
 	convertUrl := store.SettingGet(model.SettingSubConvertUrl)
 	if convertUrl == "" {
 		return nil, fmt.Errorf("sub_convert_url not configured")
@@ -24,7 +40,7 @@ func Convert(content []byte, target string) ([]byte, error) {
 		proxy = store.SettingGet(model.SettingSubConvertProxy)
 	}
 
-	reqBody, _ := json.Marshal(map[string]string{"client": target, "data": string(content)})
+	reqBody, _ := json.Marshal(map[string]string{"client": string(target), "data": string(content)})
 
 	req, err := http.NewRequest(http.MethodPost, convertUrl, bytes.NewReader(reqBody))
 	if err != nil {
