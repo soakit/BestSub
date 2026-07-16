@@ -66,6 +66,7 @@ export type TaskConfig = {
     nodes: TaskNode[];
     tags: TaskTag[];
     result_tasks: TaskInputResult[];
+    all_input_enable: number;
     custom_landing_node_enable: number;
     landing_subscriptions: TaskSubscription[];
     landing_nodes: TaskNode[];

@@ -33,6 +33,7 @@ const defaultConfig: TaskConfig = {
     nodes: [],
     tags: [],
     result_tasks: [],
+    all_input_enable: 0,
     custom_landing_node_enable: 0,
     landing_subscriptions: [],
     landing_nodes: [],
@@ -117,6 +118,7 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
     const [sourceRows, setSourceRows] = useState<TaskSourceType[]>(() => initialSourceRows(task));
     const [landingSourceRows, setLandingSourceRows] = useState<LandingSourceType[]>(() => initialLandingRows(task));
     const resultTasks = useMemo(() => tasks.filter((t) => t.id !== task?.id), [tasks, task?.id]);
+    const allInputEnabled = formState.all_input_enable === 1; // 是否在本次编辑中动态使用全部订阅和单独节点。
 
     useEffect(() => {
         // 输入变化时清掉旧结果并延迟请求，避免把过期预览显示为当前表达式。
@@ -259,8 +261,17 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
             </Disclosure>
 
             <div className="flex flex-col gap-3">
-                <span className="text-sm font-medium text-foreground">前置节点来源</span>
-                {sourceRows.map((type, index) => (
+                <div className="flex items-center">
+                    <span className="text-sm font-medium text-foreground">前置节点来源</span>
+                    <div className="flex-1" />
+                    <Switch isSelected={allInputEnabled} onChange={(selected) => setForm("all_input_enable", selected ? 1 : 0)}>
+                        <Switch.Content>
+                            全部输入
+                            <Switch.Control><Switch.Thumb /></Switch.Control>
+                        </Switch.Content>
+                    </Switch>
+                </div>
+                {sourceRows.filter((type) => !allInputEnabled || type === "result_task").map((type, index) => (
                     <div key={index} className="flex items-center gap-2">
                         <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[6rem_minmax(0,1fr)] sm:items-center">
                             <Select className="w-full" aria-label="来源类型" variant="secondary" value={type} onChange={(key) => {
@@ -272,7 +283,10 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
                                 <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
                                 <Select.Popover>
                                     <ListBox>
-                                        {taskSourceTypes.filter((source) => source.id === type || !sourceRows.includes(source.id)).map((source) => (
+                                        {taskSourceTypes.filter((source) =>
+                                            (!allInputEnabled || source.id === "result_task") &&
+                                            (source.id === type || !sourceRows.includes(source.id))
+                                        ).map((source) => (
                                             <ListBox.Item key={source.id} id={source.id}>{source.name}</ListBox.Item>
                                         ))}
                                     </ListBox>
@@ -288,7 +302,10 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
                         </Button>
                     </div>
                 ))}
-                <Button variant="ghost" className="w-full" isDisabled={sourceRows.length >= taskSourceTypes.length} onPress={() => setSourceRows((rows) => [...rows, taskSourceTypes.find((source) => !rows.includes(source.id))!.id])}>
+                <Button variant="ghost" className="w-full" isDisabled={allInputEnabled ? sourceRows.includes("result_task") : sourceRows.length >= taskSourceTypes.length} onPress={() => setSourceRows((rows) => [
+                    ...rows,
+                    allInputEnabled ? "result_task" : taskSourceTypes.find((source) => !rows.includes(source.id))!.id,
+                ])}>
                     <Plus className="size-4" />
                     添加来源
                 </Button>

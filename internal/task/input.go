@@ -10,7 +10,19 @@ import (
 func expandTaskInput(task model.Task) ([]stepNode, error) {
 	nodes := []stepNode{}
 
-	if len(task.Tags) > 0 {
+	if task.AllInputEnable == 1 {
+		subscriptions := store.SubscriptionList()
+		task.Subscriptions = make([]model.SubscriptionRef, 0, len(subscriptions))
+		for _, sub := range subscriptions {
+			task.Subscriptions = append(task.Subscriptions, model.SubscriptionRef{ID: sub.ID})
+		}
+
+		standaloneNodes := store.NodeList()
+		task.Nodes = make([]model.NodeRef, 0, len(standaloneNodes))
+		for _, node := range standaloneNodes {
+			task.Nodes = append(task.Nodes, model.NodeRef{ID: node.ID})
+		}
+	} else if len(task.Tags) > 0 {
 		tags := make([]model.Tag, 0, len(task.Tags))
 		for _, tag := range task.Tags {
 			tags = append(tags, model.Tag{ID: tag.ID})
@@ -26,7 +38,7 @@ func expandTaskInput(task model.Task) ([]stepNode, error) {
 				continue
 			}
 			seenSubIDs[id] = struct{}{}
-			task.Subscriptions = append(task.Subscriptions, model.TaskSubscription{ID: id})
+			task.Subscriptions = append(task.Subscriptions, model.SubscriptionRef{ID: id})
 		}
 		seenNodeIDs := map[string]struct{}{}
 		for _, node := range task.Nodes {
@@ -37,7 +49,7 @@ func expandTaskInput(task model.Task) ([]stepNode, error) {
 				continue
 			}
 			seenNodeIDs[id] = struct{}{}
-			task.Nodes = append(task.Nodes, model.TaskNode{ID: id})
+			task.Nodes = append(task.Nodes, model.NodeRef{ID: id})
 		}
 	}
 
@@ -48,8 +60,7 @@ func expandTaskInput(task model.Task) ([]stepNode, error) {
 		for _, item := range store.NodePoolListBySubscription(sub.ID) {
 			nodes = append(nodes, stepNode{
 				SubscriptionID: sub.ID,
-				Fingerprint:    item.Fingerprint,
-				Proxy:          append([]byte(nil), item.Proxy...),
+				Raw:            item.Raw,
 			})
 		}
 	}
@@ -61,7 +72,7 @@ func expandTaskInput(task model.Task) ([]stepNode, error) {
 		if !ok {
 			return nil, fmt.Errorf("node not found: %s", node.ID)
 		}
-		nodes = append(nodes, stepNode{NodeID: full.ID, Proxy: []byte(full.Content), Info: full.NodeInfo})
+		nodes = append(nodes, stepNode{NodeID: full.ID, Raw: &model.NodeRaw{Text: full.Content, Fingerprint: store.NodeFingerprint([]byte(full.Content))}, Info: full.NodeInfo})
 	}
 
 	resultMu.RLock()
@@ -69,11 +80,7 @@ func expandTaskInput(task model.Task) ([]stepNode, error) {
 	for _, resultTask := range task.ResultTasks {
 		for _, node := range resultNodes[resultTask.ID] {
 			// ResultTasks 只复用上次通过的 raw 节点，不继承原任务的写回来源。
-			node = cloneStepNode(node)
-			node.SubscriptionID = ""
-			node.Fingerprint = 0
-			node.NodeID = ""
-			nodes = append(nodes, node)
+			nodes = append(nodes, stepNode{Raw: node.Raw, Info: node.Info})
 		}
 	}
 	return nodes, nil
@@ -86,7 +93,7 @@ func expandLandingInput(task model.Task) ([]stepNode, error) {
 	nodes := []stepNode{}
 	for _, sub := range task.LandingSubscriptions {
 		for _, item := range store.NodePoolListBySubscription(sub.ID) {
-			nodes = append(nodes, stepNode{SubscriptionID: sub.ID, Fingerprint: item.Fingerprint, Proxy: append([]byte(nil), item.Proxy...)})
+			nodes = append(nodes, stepNode{SubscriptionID: sub.ID, Raw: item.Raw})
 		}
 	}
 	for _, node := range task.LandingNodes {
@@ -97,7 +104,7 @@ func expandLandingInput(task model.Task) ([]stepNode, error) {
 		if !ok {
 			return nil, fmt.Errorf("landing node not found: %s", node.ID)
 		}
-		nodes = append(nodes, stepNode{NodeID: full.ID, Proxy: []byte(full.Content), Info: full.NodeInfo})
+		nodes = append(nodes, stepNode{NodeID: full.ID, Raw: &model.NodeRaw{Text: full.Content, Fingerprint: store.NodeFingerprint([]byte(full.Content))}, Info: full.NodeInfo})
 	}
 	return nodes, nil
 }

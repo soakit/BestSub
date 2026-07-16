@@ -28,6 +28,7 @@ type TaskConfig struct {
 
 // TaskInput 保存任务输入来源，关联项只保留 ID，避免任务缓存重复保存完整订阅和节点内容。
 type TaskInput struct {
+	AllInputEnable          uint8             `gorm:"column:all_input_enable;default:0" json:"all_input_enable"`                                                                      // 是否动态使用全部订阅节点池和全部单独节点
 	Subscriptions           []SubscriptionRef `gorm:"many2many:task_input_subscriptions;constraint:OnDelete:CASCADE" json:"subscriptions"`                                            // 指定订阅的内存节点池
 	Nodes                   []NodeRef         `gorm:"many2many:task_input_nodes;constraint:OnDelete:CASCADE" json:"nodes"`                                                            // 指定单独节点
 	Tags                    []TagRef          `gorm:"many2many:task_input_tags;constraint:OnDelete:CASCADE" json:"tags"`                                                              // 指定 tag 下的订阅和单独节点
