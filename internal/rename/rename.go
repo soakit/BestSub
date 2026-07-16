@@ -10,10 +10,11 @@ import (
 )
 
 type templateData struct { // 重命名模板的渲染上下文。
-	Index         uint32            // 最终输出顺序中的序号。
-	Delay         uint32            // 延迟，单位毫秒。
-	DownloadSpeed uint32            // 下载速度，单位 kb/s。
-	Country       countries.Country // 节点落地国家信息。
+	Index             uint32            // 最终输出顺序中的序号。
+	Delay             uint32            // 延迟，单位毫秒。
+	DownloadSpeed     uint32            // 下载速度，单位 kb/s。
+	TrafficMultiplier float32           // 流量扣费倍率。
+	Country           countries.Country // 节点落地国家信息。
 }
 
 // Rename 按 Go 模板渲染节点名称。
@@ -46,10 +47,11 @@ func Rename(info model.NodeInfo, index uint32, expression string) (string, error
 
 	var result bytes.Buffer
 	if err := tmpl.Execute(&result, templateData{
-		Index:         index,
-		Delay:         uint32(info.Delay),
-		DownloadSpeed: info.DownloadSpeed,
-		Country:       countries.Get(info.CountryCode),
+		Index:             index,
+		Delay:             uint32(info.Delay),
+		DownloadSpeed:     info.DownloadSpeed,
+		TrafficMultiplier: info.TrafficMultiplier,
+		Country:           countries.Get(info.CountryCode),
 	}); err != nil {
 		return "", fmt.Errorf("execute rename template: %w", err)
 	}

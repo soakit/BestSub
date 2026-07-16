@@ -26,6 +26,10 @@ func init() {
 				Handle(renameTemplateCreate),
 		).
 		AddRoute(
+			router.NewRoute("/update/:id", http.MethodPut).
+				Handle(renameTemplateUpdate),
+		).
+		AddRoute(
 			router.NewRoute("/del/:id", http.MethodDelete).
 				Handle(renameTemplateDelete),
 		).
@@ -48,13 +52,44 @@ func renameTemplateCreate(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return
 	}
-	preview, err := rename.Rename(model.NodeInfo{Delay: 123, DownloadSpeed: 10240, CountryCode: "CN"}, 1, req.Expression)
+	preview, err := renderRenamePreview(req.Expression)
 	if err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	template := model.RenameTemplate{Preview: preview, Expression: req.Expression}
 	if err := store.RenameTemplateCreate(&template); err != nil {
+		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
+		return
+	}
+	resp.Success(c, template)
+}
+
+// renameTemplateUpdate 重新校验表达式，并用服务端生成的预览更新模板。
+func renameTemplateUpdate(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id < 1 {
+		resp.Error(c, http.StatusBadRequest, resp.ErrBadRequest)
+		return
+	}
+	if _, ok := store.RenameTemplateGet(id); !ok {
+		resp.Error(c, http.StatusNotFound, resp.ErrResourceNotFound)
+		return
+	}
+	var req struct {
+		Expression string `json:"expression" binding:"required"` // 交给 Go 模板解析的重命名表达式。
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	preview, err := renderRenamePreview(req.Expression)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	template := model.RenameTemplate{ID: id, Preview: preview, Expression: req.Expression}
+	if err := store.RenameTemplateUpdate(&template); err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
 		return
 	}
@@ -84,10 +119,15 @@ func renamePreview(c *gin.Context) {
 		return
 	}
 
-	result, err := rename.Rename(model.NodeInfo{Delay: 123, DownloadSpeed: 10240, CountryCode: "CN"}, 1, req.Expression)
+	result, err := renderRenamePreview(req.Expression)
 	if err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	resp.Success(c, gin.H{"result": result})
+}
+
+// renderRenamePreview 使用固定节点生成可信示例，保证预览和保存结果一致。
+func renderRenamePreview(expression string) (string, error) {
+	return rename.Rename(model.NodeInfo{Delay: 123, DownloadSpeed: 10240, CountryCode: "CN", TrafficMultiplier: 0.5}, 1, expression)
 }

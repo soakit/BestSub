@@ -25,6 +25,15 @@ export function useCreateRenameTemplate() {
     });
 }
 
+export function useUpdateRenameTemplate() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, expression }: { id: number; expression: string }) =>
+            apiRequest<RenameTemplate>(`/api/v1/rename/update/${id}`, { method: "PUT", body: { expression } }),
+        onSuccess: () => qc.invalidateQueries({ queryKey }),
+    });
+}
+
 export function useDeleteRenameTemplate() {
     const qc = useQueryClient();
     return useMutation({

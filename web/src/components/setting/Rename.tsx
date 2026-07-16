@@ -1,18 +1,20 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { AlertDialog, Button, Form, Label, Modal, TextArea, TextField, useOverlayState } from "@heroui/react";
 import { Pencil, Plus, TrashBin } from "@gravity-ui/icons";
-import { useCreateRenameTemplate, useDeleteRenameTemplate, useRenamePreview, useRenameTemplates } from "../../api/rename";
+import { type RenameTemplate, useCreateRenameTemplate, useDeleteRenameTemplate, useRenamePreview, useRenameTemplates, useUpdateRenameTemplate } from "../../api/rename";
 
 export function Rename() {
     const { data: templates = [] } = useRenameTemplates();
     const createTemplate = useCreateRenameTemplate();
+    const updateTemplate = useUpdateRenameTemplate();
     const deleteTemplate = useDeleteRenameTemplate();
     const renamePreview = useRenamePreview();
     const editorState = useOverlayState({ defaultOpen: false });
+    const [editing, setEditing] = useState<RenameTemplate | null>(null);
     const [expression, setExpression] = useState("");
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const normalizedExpression = expression.trim();
-    const templateExists = templates.some((template) => template.expression === normalizedExpression);
+    const templateExists = templates.some((template) => template.id !== editing?.id && template.expression === normalizedExpression);
     const previewReady = renamePreview.variables === normalizedExpression && renamePreview.data !== undefined;
 
     useEffect(() => {
@@ -25,12 +27,21 @@ export function Rename() {
 
     const closeEditor = () => {
         editorState.close();
+        setEditing(null);
         setExpression("");
         renamePreview.reset();
     };
 
     const openCreate = () => {
+        setEditing(null);
         setExpression("");
+        renamePreview.reset();
+        editorState.open();
+    };
+
+    const openEdit = (template: RenameTemplate) => {
+        setEditing(template);
+        setExpression(template.expression);
         renamePreview.reset();
         editorState.open();
     };
@@ -38,7 +49,11 @@ export function Rename() {
     const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!normalizedExpression || templateExists || !previewReady) return;
-        createTemplate.mutate(normalizedExpression, { onSuccess: closeEditor });
+        if (editing) {
+            updateTemplate.mutate({ id: editing.id, expression: normalizedExpression }, { onSuccess: closeEditor });
+        } else {
+            createTemplate.mutate(normalizedExpression, { onSuccess: closeEditor });
+        }
     };
 
     return (
@@ -54,23 +69,33 @@ export function Rename() {
                 {templates.length === 0 ? (
                     <div className="flex min-h-11 items-center gap-3 px-4 py-2">
                         <span className="min-w-0 grow truncate text-sm text-muted">暂无重命名模板</span>
-                        <Button isIconOnly size="sm" variant="ghost" isDisabled>
-                            <TrashBin className="size-4" />
-                        </Button>
+                        <div className="flex shrink-0 gap-1">
+                            <Button isIconOnly size="sm" variant="ghost" isDisabled>
+                                <Pencil className="size-4" />
+                            </Button>
+                            <Button isIconOnly size="sm" variant="ghost" isDisabled>
+                                <TrashBin className="size-4" />
+                            </Button>
+                        </div>
                     </div>
                 ) : (
                     [...templates].sort((a, b) => b.id - a.id).map((template) => (
                         <div key={template.id} className="flex min-h-11 items-center gap-3 px-4 py-2">
                             <span className="text-foreground min-w-0 grow truncate text-sm">{template.preview}</span>
-                            <Button
-                                isIconOnly
-                                size="sm"
-                                variant="ghost"
-                                className="text-muted hover:text-danger"
-                                onPress={() => setDeletingId(template.id)}
-                            >
-                                <TrashBin className="size-4" />
-                            </Button>
+                            <div className="flex shrink-0 gap-1">
+                                <Button isIconOnly size="sm" variant="ghost" className="text-muted hover:text-accent" onPress={() => openEdit(template)}>
+                                    <Pencil className="size-4" />
+                                </Button>
+                                <Button
+                                    isIconOnly
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-muted hover:text-danger"
+                                    onPress={() => setDeletingId(template.id)}
+                                >
+                                    <TrashBin className="size-4" />
+                                </Button>
+                            </div>
                         </div>
                     ))
                 )}
@@ -82,7 +107,7 @@ export function Rename() {
                         <Modal.Dialog>
                             <Modal.CloseTrigger />
                             <Modal.Header>
-                                <Modal.Heading>添加重命名模板</Modal.Heading>
+                                <Modal.Heading>{editing ? "编辑重命名模板" : "添加重命名模板"}</Modal.Heading>
                             </Modal.Header>
                             <Modal.Body>
                                 <Form id="rename-form" validationBehavior="native" className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
@@ -121,9 +146,9 @@ export function Rename() {
                                     type="submit"
                                     form="rename-form"
                                     variant="primary"
-                                    isDisabled={!normalizedExpression || templateExists || !previewReady || createTemplate.isPending}
+                                    isDisabled={!normalizedExpression || templateExists || !previewReady || createTemplate.isPending || updateTemplate.isPending}
                                 >
-                                    添加
+                                    {editing ? "保存" : "添加"}
                                 </Button>
                             </Modal.Footer>
                         </Modal.Dialog>

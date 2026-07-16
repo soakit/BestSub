@@ -46,6 +46,18 @@ func RenameTemplateCreate(template *model.RenameTemplate) error {
 	return nil
 }
 
+// RenameTemplateUpdate 写库成功后同步更新缓存。
+func RenameTemplateUpdate(template *model.RenameTemplate) error {
+	if template == nil {
+		return fmt.Errorf("rename template is required")
+	}
+	if err := db.Model(&model.RenameTemplate{}).Where("id = ?", template.ID).Select("preview", "expression").Updates(template).Error; err != nil {
+		return err
+	}
+	renameTemplateCache.Set(template.ID, *template)
+	return nil
+}
+
 // RenameTemplateDelete 删库成功后同步删除缓存。
 func RenameTemplateDelete(id int) error {
 	if err := db.Delete(&model.RenameTemplate{}, id).Error; err != nil {
