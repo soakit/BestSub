@@ -19,10 +19,10 @@ type Task struct {
 
 // TaskConfig 保存任务基础配置和外部输入引用。
 type TaskConfig struct {
-	Name     string     `gorm:"column:name;type:varchar(255)" json:"name"`                              // 任务名称
-	AutoRun  uint8      `gorm:"column:auto_run;default:0" json:"auto_run"`                              // 是否自动运行
-	CronExpr string     `gorm:"column:cron_expr;type:varchar(64)" json:"cron_expr"`                     // Cron 表达式
-	Steps    []TaskStep `gorm:"column:steps;type:json;serializer:json" json:"steps" binding:"required"` // 线性步骤列表
+	Name     string     `gorm:"column:name;type:varchar(255)" json:"name" binding:"required"`             // 任务名称
+	AutoRun  uint8      `gorm:"column:auto_run;default:0" json:"auto_run"`                                // 是否自动运行
+	CronExpr string     `gorm:"column:cron_expr;type:varchar(64)" json:"cron_expr"`                       // Cron 表达式
+	Steps    []TaskStep `gorm:"column:steps;type:json;serializer:json" json:"steps" binding:"min=1,dive"` // 线性步骤列表
 	TaskInput
 	StorageConfig
 }
@@ -59,20 +59,20 @@ const (
 
 // TaskStep 保存单个检测步骤。
 type TaskStep struct {
-	Type           probe.ProbeType `json:"type"`                       // 步骤类型: delay/speed/country
-	Params         json.RawMessage `json:"params,omitempty"`           // 检测模块参数，由 pkg/probe 内部按类型解析
-	Concurrency    int             `json:"concurrency,omitempty"`      // 本步骤并发数
-	Pass           NodeFilter      `json:"pass,omitempty"`             // 通过条件
-	Order          OrderType       `json:"order"`                      // 处理顺序：0=不排序，1=延迟升序，2=下载速度降序
-	NodePoolDelete uint8           `json:"node_pool_delete,omitempty"` // 探测失败时是否从订阅节点池删除节点
-	SkipExisting   uint8           `json:"skip_existing,omitempty"`    // 对应检测结果已存在时是否跳过本步骤探测
+	Type           probe.ProbeType `json:"type" binding:"oneof=delay speed country"` // 步骤类型: delay/speed/country
+	Params         json.RawMessage `json:"params,omitempty"`                         // 检测模块参数，由 pkg/probe 内部按类型解析
+	Concurrency    int             `json:"concurrency,omitempty"`                    // 本步骤并发数
+	Pass           NodeFilter      `json:"pass,omitempty"`                           // 通过条件
+	Order          OrderType       `json:"order" binding:"oneof=0 1 2"`              // 处理顺序：0=不排序，1=延迟升序，2=下载速度降序
+	NodePoolDelete uint8           `json:"node_pool_delete,omitempty"`               // 探测失败时是否从订阅节点池删除节点
+	SkipExisting   uint8           `json:"skip_existing,omitempty"`                  // 对应检测结果已存在时是否跳过本步骤探测
 }
 
 // StorageConfig 保存任务完成后的储存配置。
 type StorageConfig struct {
 	StorageEnable        uint8   `gorm:"column:storage_enable;default:0" json:"storage_enable"`                 // 是否在任务完成后储存
 	StorageID            string  `gorm:"column:storage_id;type:varchar(36)" json:"storage_id"`                  // 储存目标 ID
-	Storage              Storage `gorm:"foreignKey:StorageID;references:ID" json:"storage,omitempty"`           // 储存目标
+	Storage              Storage `gorm:"foreignKey:StorageID;references:ID" json:"storage,omitempty" binding:"-"` // 储存目标，仅用于接口展示，不参与请求校验
 	SaveFormat           string  `gorm:"column:save_format;type:varchar(32)" json:"save_format"`                // 保存格式，对应订阅转换目标
 	SavePath             string  `gorm:"column:save_path;type:text" json:"save_path"`                           // 储存路径
 	NodeRenameExpression string  `gorm:"column:node_rename_expression;type:text" json:"node_rename_expression"` // 节点重命名表达式

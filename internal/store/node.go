@@ -21,7 +21,6 @@ func initNode() error {
 }
 
 func NodeCreate(node *model.Node) error {
-	node.TrafficMultiplier = parseTrafficMultiplier(node.Content)
 	if err := db.Create(node).Error; err != nil {
 		return err
 	}
@@ -72,7 +71,6 @@ func NodeUpdateInfo(id string, info model.NodeInfo) error {
 }
 
 func NodeUpdate(id string, node *model.Node) error {
-	node.TrafficMultiplier = parseTrafficMultiplier(node.Content)
 	if err := db.Model(&model.Node{}).Where("id = ?", id).Select("name", "content", "traffic_multiplier").Updates(node).Error; err != nil {
 		return err
 	}

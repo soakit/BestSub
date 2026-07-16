@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/node"
 	"github.com/bestruirui/bestsub/internal/store"
 	"github.com/bestruirui/bestsub/pkg/mihomo"
 	"github.com/bestruirui/bestsub/pkg/probe"
@@ -16,15 +17,15 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-func runStep(ctx context.Context, taskID string, step model.TaskStep, nodes, landingNodes []stepNode) ([]stepNode, error) {
-	if err := validateStep(step); err != nil {
-		return nil, err
-	}
+type stepResult struct { // 单个节点检测完成后的结果。
+	current node.Node // 成功探测或跳过后保留的节点信息。
+	success bool      // 是否参与当前步骤通过条件判断。
+}
+
+// runStep 并发检测节点，在满足通过条件的节点达到 Limit 后停止派发剩余节点。
+func runStep(ctx context.Context, taskID string, step model.TaskStep, nodes []node.Node, landingNode *node.Raw) ([]node.Node, error) {
 	if len(nodes) == 0 {
 		return nil, nil
-	}
-	for i := range nodes {
-		nodes[i].Index = i
 	}
 	concurrency := step.Concurrency
 	if concurrency <= 0 {
@@ -34,125 +35,126 @@ func runStep(ctx context.Context, taskID string, step model.TaskStep, nodes, lan
 		concurrency = len(nodes)
 	}
 
-	jobs := make(chan stepNode)
-	results := make(chan stepNode)
+	jobs := make(chan node.Node)
+	results := make(chan stepResult)
 	var wg sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for node := range jobs {
-				next, err := runStepNode(ctx, step, node, landingNodes)
-				if err != nil {
-					if ctx.Err() == nil {
-						handleStepFailure(step, node)
-						addTaskProgressDone(taskID)
+			for current := range jobs {
+				next := current
+				skip := step.SkipExisting == 1 && ((step.Type == probe.TypeDelay && current.Info.Delay > 0) ||
+					(step.Type == probe.TypeSpeed && current.Info.DownloadSpeed > 0) ||
+					(step.Type == probe.TypeCountry && current.Info.CountryCode != "")) // 已有当前类型检测值时直接复用，不写回。
+				success := true // 是否将当前节点交给通过条件判断。
+				if !skip {
+					var err error
+					next, err = runStepNode(ctx, step, current, landingNode)
+					if err != nil {
+						if ctx.Err() != nil {
+							return
+						}
+						// 订阅节点配置删除时只从节点池清除；其余失败节点清空本步骤检测值。
+						if current.SubscriptionID != "" && step.NodePoolDelete == 1 {
+							node.PoolDelete(current.SubscriptionID, current.Raw.Fingerprint)
+						} else if current.NodeID != "" {
+							switch step.Type {
+							case probe.TypeDelay:
+								current.Info.Delay = 0
+							case probe.TypeSpeed:
+								current.Info.DownloadSpeed = 0
+							case probe.TypeCountry:
+								current.Info.CountryCode = ""
+							}
+							if err := store.NodeUpdateInfo(current.NodeID, current.Info); err != nil {
+								log.Errorf("update failed node info error: %v", err)
+							}
+						}
+						success = false
+					} else if err := writeStepSuccess(step, next); err != nil {
+						log.Errorf("write task node result error: %v", err)
+						success = false
 					}
-					continue
-				}
-				if err := writeStepSuccess(step, next); err != nil {
-					log.Errorf("write task node result error: %v", err)
-					addTaskProgressDone(taskID)
-					continue
 				}
 				addTaskProgressDone(taskID)
 				select {
 				case <-ctx.Done():
 					return
-				case results <- next:
+				case results <- stepResult{current: next, success: success}:
 				}
 			}
 		}()
 	}
+	defer func() {
+		close(jobs)
+		wg.Wait()
+	}()
 
-	go func() {
-		defer close(jobs)
-		for _, node := range nodes {
-			select {
-			case <-ctx.Done():
-				return
-			case jobs <- node:
+	out := make([]node.Node, 0, len(nodes))
+	next, running := 0, 0
+	for next < len(nodes) && running < concurrency {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case jobs <- nodes[next]:
+			next++
+			running++
+		}
+	}
+	for running > 0 {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case result := <-results:
+			running--
+			if result.success && passStep(step, result.current) && (step.Pass.Limit <= 0 || len(out) < step.Pass.Limit) {
+				out = append(out, result.current)
+				if step.Pass.Limit > 0 && len(out) == step.Pass.Limit {
+					setTaskProgressTotal(taskID, next)
+				}
+			}
+			if next < len(nodes) && (step.Pass.Limit <= 0 || len(out) < step.Pass.Limit) {
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case jobs <- nodes[next]:
+					next++
+					running++
+				}
 			}
 		}
-	}()
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	out := make([]stepNode, 0, len(nodes))
-	for node := range results {
-		out = append(out, node)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return applyStepPassOrder(step, out)
+	switch step.Order {
+	case model.OrderNone:
+	case model.OrderDelay:
+		sort.SliceStable(out, func(i, j int) bool { return out[i].Info.Delay < out[j].Info.Delay })
+	case model.OrderSpeed:
+		sort.SliceStable(out, func(i, j int) bool { return out[i].Info.DownloadSpeed > out[j].Info.DownloadSpeed })
+	}
+	return out, nil
 }
 
-func runStepNode(ctx context.Context, step model.TaskStep, node stepNode, landingNodes []stepNode) (stepNode, error) {
-	if step.SkipExisting == 1 {
-		switch step.Type {
-		case probe.TypeDelay:
-			if node.Info.Delay > 0 {
-				return node, nil
-			}
-		case probe.TypeSpeed:
-			if node.Info.DownloadSpeed > 0 {
-				return node, nil
-			}
-		case probe.TypeCountry:
-			if strings.TrimSpace(node.Info.CountryCode) != "" {
-				return node, nil
-			}
-		}
+func runStepNode(ctx context.Context, step model.TaskStep, node node.Node, landingNode *node.Raw) (node.Node, error) {
+	var landingRaw []byte
+	if landingNode != nil {
+		landingRaw = []byte(landingNode.Text)
 	}
-	if len(landingNodes) == 0 {
-		transport, closeProxy, err := mihomo.NewTransport([]byte(node.Raw.Text), nil, store.SettingGet(model.SettingBindInterface))
-		if err != nil {
-			return node, err
-		}
-		defer func() {
-			transport.CloseIdleConnections()
-			if err := closeProxy(); err != nil {
-				log.Errorf("close task node proxy error: %v", err)
-			}
-		}()
-		return runProbe(ctx, step, node, &http.Client{Transport: transport})
+	transport, closeProxy, err := mihomo.NewTransport([]byte(node.Raw.Text), landingRaw, store.SettingGet(model.SettingBindInterface))
+	if err != nil {
+		return node, err
 	}
-
-	var best stepNode
-	var lastErr error
-	for _, landing := range landingNodes {
-		if err := ctx.Err(); err != nil {
-			return node, err
-		}
-		transport, closeProxy, err := mihomo.NewTransport([]byte(node.Raw.Text), []byte(landing.Raw.Text), store.SettingGet(model.SettingBindInterface))
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		next, err := runProbe(ctx, step, node, &http.Client{Transport: transport})
-		// 每个候选节点探测结束后立即释放内外层代理资源。
+	// 无论是否启用落地节点，探测结束后都同时释放传输连接和代理实例。
+	defer func() {
 		transport.CloseIdleConnections()
 		if err := closeProxy(); err != nil {
 			log.Errorf("close task node proxy error: %v", err)
 		}
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		if best.Raw == nil || betterStepNode(step, next, best) {
-			best = next
-		}
-	}
-	if best.Raw != nil {
-		return best, nil
-	}
-	return node, lastErr
-}
-
-func runProbe(ctx context.Context, step model.TaskStep, node stepNode, client *http.Client) (stepNode, error) {
+	}()
+	client := &http.Client{Transport: transport}
 	switch step.Type {
 	case probe.TypeDelay:
 		var delay uint16
@@ -172,78 +174,32 @@ func runProbe(ctx context.Context, step model.TaskStep, node stepNode, client *h
 			return node, err
 		}
 		node.Info.CountryCode = countryCode
-	default:
-		return node, fmt.Errorf("unknown task step type: %s", step.Type)
 	}
 	return node, nil
 }
 
-func writeStepSuccess(step model.TaskStep, node stepNode) error {
-	if node.SubscriptionID != "" {
+func writeStepSuccess(step model.TaskStep, current node.Node) error {
+	if current.SubscriptionID != "" {
 		var ok bool
 		switch step.Type {
 		case probe.TypeDelay:
-			ok = store.NodePoolUpdateDelay(node.SubscriptionID, node.Raw.Fingerprint, node.Info.Delay)
+			ok = node.PoolUpdateDelay(current.SubscriptionID, current.Raw.Fingerprint, current.Info.Delay)
 		case probe.TypeSpeed:
-			ok = store.NodePoolUpdateDownloadSpeed(node.SubscriptionID, node.Raw.Fingerprint, node.Info.DownloadSpeed)
+			ok = node.PoolUpdateDownloadSpeed(current.SubscriptionID, current.Raw.Fingerprint, current.Info.DownloadSpeed)
 		case probe.TypeCountry:
-			ok = store.NodePoolUpdateCountryCode(node.SubscriptionID, node.Raw.Fingerprint, node.Info.CountryCode)
+			ok = node.PoolUpdateCountryCode(current.SubscriptionID, current.Raw.Fingerprint, current.Info.CountryCode)
 		}
 		if !ok {
-			return fmt.Errorf("node pool item not found: %s %d", node.SubscriptionID, node.Raw.Fingerprint)
+			return fmt.Errorf("node pool item not found: %s %d", current.SubscriptionID, current.Raw.Fingerprint)
 		}
 	}
-	if node.NodeID != "" {
-		return store.NodeUpdateInfo(node.NodeID, node.Info)
+	if current.NodeID != "" {
+		return store.NodeUpdateInfo(current.NodeID, current.Info)
 	}
 	return nil
 }
 
-func handleStepFailure(step model.TaskStep, node stepNode) {
-	if node.SubscriptionID != "" && step.NodePoolDelete == 1 {
-		store.NodePoolDelete(node.SubscriptionID, node.Raw.Fingerprint)
-		return
-	}
-	if node.NodeID == "" {
-		return
-	}
-	switch step.Type {
-	case probe.TypeDelay:
-		node.Info.Delay = 0
-	case probe.TypeSpeed:
-		node.Info.DownloadSpeed = 0
-	case probe.TypeCountry:
-		node.Info.CountryCode = ""
-	}
-	if err := store.NodeUpdateInfo(node.NodeID, node.Info); err != nil {
-		log.Errorf("update failed node info error: %v", err)
-	}
-}
-
-func applyStepPassOrder(step model.TaskStep, nodes []stepNode) ([]stepNode, error) {
-	out := nodes[:0]
-	for _, node := range nodes {
-		if passStep(step, node) {
-			out = append(out, node)
-		}
-	}
-	switch strings.ToLower(strings.TrimSpace(step.Order)) {
-	case "", "none":
-		sort.SliceStable(out, func(i, j int) bool { return out[i].Index < out[j].Index })
-	case "delay":
-		sort.SliceStable(out, func(i, j int) bool { return out[i].Info.Delay < out[j].Info.Delay })
-	case "speed":
-		sort.SliceStable(out, func(i, j int) bool { return out[i].Info.DownloadSpeed > out[j].Info.DownloadSpeed })
-	default:
-		return nil, fmt.Errorf("unknown task step order: %s", step.Order)
-	}
-	if step.Pass.Limit > 0 && len(out) > step.Pass.Limit {
-		out = out[:step.Pass.Limit]
-	}
-	return out, nil
-}
-
-func passStep(step model.TaskStep, node stepNode) bool {
+func passStep(step model.TaskStep, node node.Node) bool {
 	switch step.Type {
 	case probe.TypeDelay:
 		return (step.Pass.MinDelay == 0 || node.Info.Delay >= step.Pass.MinDelay) &&
@@ -252,44 +208,8 @@ func passStep(step model.TaskStep, node stepNode) bool {
 		return (step.Pass.MinDownloadSpeed == 0 || node.Info.DownloadSpeed >= step.Pass.MinDownloadSpeed) &&
 			(step.Pass.MaxDownloadSpeed == 0 || node.Info.DownloadSpeed <= step.Pass.MaxDownloadSpeed)
 	case probe.TypeCountry:
-		countryCode := strings.ToUpper(strings.TrimSpace(node.Info.CountryCode))
-		if len(step.Pass.IncludeCountryCodes) > 0 && !countryInList(countryCode, step.Pass.IncludeCountryCodes) {
-			return false
-		}
-		return !countryInList(countryCode, step.Pass.ExcludeCountryCodes)
-	}
-	return false
-}
-
-func validateStep(step model.TaskStep) error {
-	switch step.Type {
-	case probe.TypeDelay, probe.TypeSpeed, probe.TypeCountry:
-	default:
-		return fmt.Errorf("unknown task step type: %s", step.Type)
-	}
-	switch strings.ToLower(strings.TrimSpace(step.Order)) {
-	case "", "none", "delay", "speed":
-		return nil
-	default:
-		return fmt.Errorf("unknown task step order: %s", step.Order)
-	}
-}
-
-func betterStepNode(step model.TaskStep, next, best stepNode) bool {
-	switch step.Type {
-	case probe.TypeDelay:
-		return next.Info.Delay < best.Info.Delay
-	case probe.TypeSpeed:
-		return next.Info.DownloadSpeed > best.Info.DownloadSpeed
-	}
-	return false
-}
-
-func countryInList(countryCode string, list []string) bool {
-	for _, item := range list {
-		if countryCode == strings.ToUpper(strings.TrimSpace(item)) {
-			return true
-		}
+		return (len(step.Pass.IncludeCountryCodes) == 0 || slices.Contains(step.Pass.IncludeCountryCodes, node.Info.CountryCode)) &&
+			!slices.Contains(step.Pass.ExcludeCountryCodes, node.Info.CountryCode)
 	}
 	return false
 }

@@ -5,11 +5,12 @@ import (
 	"net/http"
 
 	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/node"
 	"github.com/bestruirui/bestsub/internal/server/middleware"
 	"github.com/bestruirui/bestsub/internal/server/resp"
 	"github.com/bestruirui/bestsub/internal/server/router"
 	"github.com/bestruirui/bestsub/internal/store"
-	taskservice "github.com/bestruirui/bestsub/internal/task"
+	"github.com/bestruirui/bestsub/internal/task"
 
 	"github.com/gin-gonic/gin"
 )
@@ -69,16 +70,16 @@ func taskGet(c *gin.Context) {
 }
 
 func taskCreate(c *gin.Context) {
-	var task model.Task
-	if err := c.ShouldBindJSON(&task); err != nil {
+	var taskVar model.Task
+	if err := c.ShouldBindJSON(&taskVar); err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return
 	}
-	if err := store.TaskCreate(&task); err != nil {
-		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
+	if err := task.Create(&taskVar); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	resp.Success(c, task)
+	resp.Success(c, taskVar)
 }
 
 func taskUpdate(c *gin.Context) {
@@ -87,24 +88,32 @@ func taskUpdate(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return
 	}
-	if err := store.TaskUpdateConfig(c.Param("id"), config); err != nil {
-		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
+	if err := task.Update(c.Param("id"), config); err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			resp.Error(c, http.StatusNotFound, resp.ErrResourceNotFound)
+			return
+		}
+		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	resp.Success(c, "task updated successfully")
 }
 
 func taskDelete(c *gin.Context) {
-	if err := store.TaskDelete(c.Param("id")); err != nil {
-		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
+	if err := task.Delete(c.Param("id")); err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			resp.Error(c, http.StatusNotFound, resp.ErrResourceNotFound)
+			return
+		}
+		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	resp.Success(c, "task deleted successfully")
 }
 
 func taskRun(c *gin.Context) {
-	if err := taskservice.Run(c.Param("id")); err != nil {
-		if errors.Is(err, taskservice.ErrTaskNotFound) {
+	if err := task.Run(c.Param("id")); err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
 			resp.Error(c, http.StatusNotFound, resp.ErrResourceNotFound)
 			return
 		}
@@ -115,7 +124,7 @@ func taskRun(c *gin.Context) {
 }
 
 func taskStop(c *gin.Context) {
-	if err := taskservice.StopTask(c.Param("id")); err != nil {
+	if err := task.StopTask(c.Param("id")); err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -127,9 +136,9 @@ func taskResult(c *gin.Context) {
 		resp.Error(c, http.StatusNotFound, resp.ErrResourceNotFound)
 		return
 	}
-	resp.Success(c, taskservice.ResultCount(c.Param("id")))
+	resp.Success(c, node.ResultCount(c.Param("id")))
 }
 
 func taskStream(c *gin.Context) {
-	taskservice.ProgressEvents.Subscribe(c)
+	task.ProgressEvents.Subscribe(c)
 }

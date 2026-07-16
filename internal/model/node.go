@@ -47,16 +47,6 @@ type NodeFilter struct {
 	ExcludeCountryCodes []string `json:"exclude_country_codes,omitempty"` // 排除这些国家代码
 }
 
-type NodeRaw struct { // 可在节点池、任务和分享之间复用的不可变节点原文
-	Text        string // 单条 Mihomo YAML 节点内容，创建后不再修改。
-	Fingerprint uint64 // 按既有 NodeFingerprint 算法生成的节点指纹。
-}
-
-type NodeSnapshot struct { // 节点原文与一组附加信息的运行时快照
-	Raw  *NodeRaw // 可共享的不可变节点原文。
-	Info NodeInfo // 当前或任务完成时的节点附加信息。
-}
-
 func (n *Node) BeforeCreate(tx *gorm.DB) error {
 	if n.ID == "" {
 		n.ID = uuid.New().String()

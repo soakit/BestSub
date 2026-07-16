@@ -13,6 +13,7 @@ import (
 	"github.com/bestruirui/bestsub/internal/server/middleware"
 	"github.com/bestruirui/bestsub/internal/server/router"
 	"github.com/bestruirui/bestsub/internal/store"
+	"github.com/bestruirui/bestsub/internal/task"
 	"github.com/bestruirui/bestsub/internal/utils"
 	"github.com/bestruirui/bestsub/pkg/mihomo"
 	"github.com/bestruirui/bestsub/static"
@@ -70,6 +71,12 @@ var startCmd = &cobra.Command{
 		if defStr != "" || mainStr != "" {
 			mihomo.UpdateDNSConfig(utils.SplitComma(defStr), utils.SplitComma(mainStr))
 		}
+
+		if err := task.Start(cmd.Context()); err != nil {
+			log.Errorf("task service init error: %v", err)
+			return
+		}
+		defer task.Stop()
 
 		addr := fmt.Sprintf("%s:%d", conf.AppConfig.Server.Host, conf.AppConfig.Server.Port)
 		log.Infof("http server listening on http://%s", addr)

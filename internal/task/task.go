@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/node"
 	"github.com/bestruirui/bestsub/internal/store"
 )
 
@@ -20,15 +21,6 @@ var (
 	taskCancel  context.CancelFunc // 取消任务模块生命周期上下文，用于整体停止调度和运行任务
 	taskStarted bool               // 任务模块是否已启动，防止重复启动或重复停止
 )
-
-type stepNode struct { // 单次任务步骤间传递的节点状态
-	SubscriptionID string         // 订阅节点来源 ID，非空时用 Fingerprint 写回节点池
-	Fingerprint    uint64         // 订阅节点池指纹，用于定位订阅内唯一节点
-	NodeID         string         // 单独节点来源 ID，非空时写回 node 表检测信息
-	Proxy          []byte         // 单条 mihomo YAML 节点内容
-	Info           model.NodeInfo // 当前任务执行过程中累计的检测信息
-	Index          int            // 当前步骤输入顺序，用于 Order=none 时恢复稳定顺序
-}
 
 func Start(ctx context.Context) error {
 	taskMu.Lock()
@@ -81,9 +73,6 @@ func Stop() {
 }
 
 func Create(task *model.Task) error {
-	if task == nil {
-		return fmt.Errorf("task is required")
-	}
 	if err := ValidateSchedule(task.TaskConfig); err != nil {
 		return err
 	}
@@ -118,6 +107,7 @@ func Delete(id string) error {
 		return err
 	}
 	removeSchedule(id)
-	cancelRunning(id)
+	cancelRunningAndWait(id)
+	node.DeleteResult(id)
 	return nil
 }

@@ -19,8 +19,7 @@ func initTask() error {
 		Preload("Nodes", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
 		Preload("Tags", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
 		Preload("ResultTasks", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
-		Preload("LandingSubscriptions", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
-		Preload("LandingNodes", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
+		Preload("LandingNode", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
 		Preload("Storage", func(tx *gorm.DB) *gorm.DB { return tx.Select("id") }).
 		Find(&tasks).Error; err != nil {
 		return fmt.Errorf("failed to load tasks: %w", err)
@@ -36,17 +35,19 @@ func TaskCreate(task *model.Task) error {
 	nodes := task.Nodes
 	tags := task.Tags
 	resultTasks := task.ResultTasks
-	landingSubscriptions := task.LandingSubscriptions
-	landingNodes := task.LandingNodes
+	landingNode := task.LandingNode
 	task.Subscriptions = nil
 	task.Nodes = nil
 	task.Tags = nil
 	task.ResultTasks = nil
-	task.LandingSubscriptions = nil
-	task.LandingNodes = nil
+	task.LandingNodeID = nil
+	task.LandingNode = model.NodeRef{}
+	if landingNode.ID != "" {
+		task.LandingNodeID = &landingNode.ID
+	}
 
 	if err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(task).Error; err != nil {
+		if err := tx.Omit("LandingNode").Create(task).Error; err != nil {
 			return err
 		}
 		if err := tx.Omit("Subscriptions.*").Model(task).Association("Subscriptions").Replace(subscriptions); err != nil {
@@ -58,13 +59,7 @@ func TaskCreate(task *model.Task) error {
 		if err := tx.Omit("Tags.*").Model(task).Association("Tags").Replace(tags); err != nil {
 			return err
 		}
-		if err := tx.Omit("ResultTasks.*").Model(task).Association("ResultTasks").Replace(resultTasks); err != nil {
-			return err
-		}
-		if err := tx.Omit("LandingSubscriptions.*").Model(task).Association("LandingSubscriptions").Replace(landingSubscriptions); err != nil {
-			return err
-		}
-		return tx.Omit("LandingNodes.*").Model(task).Association("LandingNodes").Replace(landingNodes)
+		return tx.Omit("ResultTasks.*").Model(task).Association("ResultTasks").Replace(resultTasks)
 	}); err != nil {
 		return err
 	}
@@ -73,8 +68,7 @@ func TaskCreate(task *model.Task) error {
 	task.Nodes = nodes
 	task.Tags = tags
 	task.ResultTasks = resultTasks
-	task.LandingSubscriptions = landingSubscriptions
-	task.LandingNodes = landingNodes
+	task.LandingNode = landingNode
 	taskCache.Set(task.ID, *task)
 	return nil
 }
@@ -104,20 +98,22 @@ func TaskUpdateConfig(id string, config model.TaskConfig) error {
 	nodes := config.Nodes
 	tags := config.Tags
 	resultTasks := config.ResultTasks
-	landingSubscriptions := config.LandingSubscriptions
-	landingNodes := config.LandingNodes
+	landingNode := config.LandingNode
 	config.Subscriptions = nil
 	config.Nodes = nil
 	config.Tags = nil
 	config.ResultTasks = nil
-	config.LandingSubscriptions = nil
-	config.LandingNodes = nil
+	config.LandingNodeID = nil
+	config.LandingNode = model.NodeRef{}
+	if landingNode.ID != "" {
+		config.LandingNodeID = &landingNode.ID
+	}
 
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&model.Task{}).
 			Where("id = ?", id).
 			Select("*").
-			Omit("Subscriptions", "Nodes", "Tags", "ResultTasks", "LandingSubscriptions", "LandingNodes", "Storage").
+			Omit("Subscriptions", "Nodes", "Tags", "ResultTasks", "LandingNode", "Storage").
 			Updates(config).Error; err != nil {
 			return err
 		}
@@ -131,13 +127,7 @@ func TaskUpdateConfig(id string, config model.TaskConfig) error {
 		if err := tx.Omit("Tags.*").Model(task).Association("Tags").Replace(tags); err != nil {
 			return err
 		}
-		if err := tx.Omit("ResultTasks.*").Model(task).Association("ResultTasks").Replace(resultTasks); err != nil {
-			return err
-		}
-		if err := tx.Omit("LandingSubscriptions.*").Model(task).Association("LandingSubscriptions").Replace(landingSubscriptions); err != nil {
-			return err
-		}
-		return tx.Omit("LandingNodes.*").Model(task).Association("LandingNodes").Replace(landingNodes)
+		return tx.Omit("ResultTasks.*").Model(task).Association("ResultTasks").Replace(resultTasks)
 	}); err != nil {
 		return err
 	}
@@ -147,8 +137,7 @@ func TaskUpdateConfig(id string, config model.TaskConfig) error {
 		config.Nodes = nodes
 		config.Tags = tags
 		config.ResultTasks = resultTasks
-		config.LandingSubscriptions = landingSubscriptions
-		config.LandingNodes = landingNodes
+		config.LandingNode = landingNode
 		task.TaskConfig = config
 		taskCache.Set(id, task)
 	}

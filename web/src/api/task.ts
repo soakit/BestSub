@@ -174,12 +174,10 @@ export function useStopTask() {
 type Listener = (ev: TaskProgressEvent) => void;
 
 let es: EventSource | null = null;
-let listeners: Set<Listener> = new Set();
-let connecting = false;
+const listeners = new Set<Listener>();
 
 function connect() {
-    if (es || connecting) return;
-    connecting = true;
+    if (es) return;
     es = new EventSource("/api/v1/task/stream", {
         withCredentials: true,
     });
@@ -199,19 +197,14 @@ function connect() {
     es.addEventListener("done", onDone);
 
     es.onerror = () => {
-        es?.close();
-        es = null;
-        connecting = false;
+        disconnect();
         setTimeout(() => { if (listeners.size > 0) connect(); }, 3000);
     };
-
-    connecting = false;
 }
 
 function disconnect() {
     es?.close();
     es = null;
-    connecting = false;
 }
 
 if (typeof document !== "undefined") {

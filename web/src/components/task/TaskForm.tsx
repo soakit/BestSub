@@ -187,7 +187,7 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
             save_path: formState.storage_enable === 1 ? formState.save_path.trim() : "",
             node_rename_expression: formState.storage_enable === 1 ? formState.node_rename_expression.trim() : "",
         };
-        if (!payload.name || payload.steps.length === 0) return;
+        if (payload.steps.length === 0) return;
         if (task) {
             updateTask.mutate({ ...payload, id: task.id }, { onSuccess: onClose });
         } else {
@@ -196,10 +196,10 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
     };
 
     return (
-        <Form id="task-form" validationBehavior="native" className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
-            <TextField isRequired value={formState.name} onChange={(value) => setForm("name", value)}>
+        <Form id="task-form" className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
+            <TextField isRequired name="name" value={formState.name} onChange={(value) => setForm("name", value)}>
                 <Label>任务名称</Label>
-                <Input name="name" placeholder="我的任务" variant="secondary" />
+                <Input placeholder="我的任务" variant="secondary" />
             </TextField>
 
             <Disclosure className="w-full" isExpanded={formState.auto_run === 1}>

@@ -33,12 +33,9 @@ func ValidateSchedule(config model.TaskConfig) error {
 }
 
 func syncSchedule(task model.Task) error {
-	if task.AutoRun != 1 || strings.TrimSpace(task.CronExpr) == "" {
+	if task.AutoRun != 1 {
 		removeSchedule(task.ID)
 		return nil
-	}
-	if _, err := cronParser.Parse(strings.TrimSpace(task.CronExpr)); err != nil {
-		return fmt.Errorf("invalid cron expression: %w", err)
 	}
 
 	scheduleMu.Lock()

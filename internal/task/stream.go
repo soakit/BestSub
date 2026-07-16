@@ -57,6 +57,16 @@ func addTaskProgressDone(taskID string) {
 	progressMu.Unlock()
 }
 
+// setTaskProgressTotal 将提前停止步骤的进度总数更新为实际派发的节点数。
+func setTaskProgressTotal(taskID string, total int) {
+	progressMu.Lock()
+	if progress, ok := progressItems[taskID]; ok {
+		progress.Total = total
+		progressItems[taskID] = progress
+	}
+	progressMu.Unlock()
+}
+
 func deleteTaskProgress(taskID string) {
 	progressMu.Lock()
 	delete(progressItems, taskID)

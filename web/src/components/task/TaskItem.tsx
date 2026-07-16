@@ -25,7 +25,7 @@ export function TaskItem({ task, onEdit, onDelete }: { task: Task; onEdit: (task
     return (
         <div className="bg-surface rounded-2xl p-4 flex flex-col h-full">
             <div className="flex justify-between items-start gap-4 mb-3">
-                <h3 className="flex-1 min-w-0 text-foreground text-xl leading-snug line-clamp-1" title={task.name}>{task.name || "未命名任务"}</h3>
+                <h3 className="flex-1 min-w-0 text-foreground text-xl leading-snug line-clamp-1" title={task.name}>{task.name}</h3>
                 <div className="flex gap-0.5 bg-surface-secondary rounded-lg p-0.5 shrink-0">
                     {progress || runTask.isPending ? (
                         <button
@@ -42,7 +42,7 @@ export function TaskItem({ task, onEdit, onDelete }: { task: Task; onEdit: (task
                                 runTask.mutate(task.id, {
                                     onError: (err) => {
                                         setProgress(null);
-                                        toast.danger(task.name || "未命名任务", { description: err instanceof Error ? err.message : "启动失败" });
+                                        toast.danger(task.name, { description: err.message });
                                     },
                                 });
                             }}
@@ -75,7 +75,7 @@ export function TaskItem({ task, onEdit, onDelete }: { task: Task; onEdit: (task
                             </div>
                         ) : progress
                             ? "启动中"
-                            : task.finished_at && task.finished_at !== "0001-01-01T00:00:00Z" && task.finished_at !== null
+                            : task.finished_at && task.finished_at !== "0001-01-01T00:00:00Z"
                                 ? new Date(task.finished_at).toLocaleString(undefined, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
                                 : "从未运行"}
                     </div>

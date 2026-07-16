@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/node"
 	"github.com/bestruirui/bestsub/internal/server/middleware"
 	"github.com/bestruirui/bestsub/internal/server/resp"
 	"github.com/bestruirui/bestsub/internal/server/router"
@@ -38,26 +39,28 @@ func nodeList(c *gin.Context) {
 }
 
 func nodeCreate(c *gin.Context) {
-	var node model.Node
-	if err := c.ShouldBindJSON(&node); err != nil {
+	var current model.Node
+	if err := c.ShouldBindJSON(&current); err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return
 	}
-	if err := store.NodeCreate(&node); err != nil {
+	current.TrafficMultiplier = node.ParseTrafficMultiplier(current.Content)
+	if err := store.NodeCreate(&current); err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
 		return
 	}
-	resp.Success(c, node)
+	resp.Success(c, current)
 }
 
 func nodeUpdate(c *gin.Context) {
 	id := c.Param("id")
-	var node model.Node
-	if err := c.ShouldBindJSON(&node); err != nil {
+	var current model.Node
+	if err := c.ShouldBindJSON(&current); err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return
 	}
-	if err := store.NodeUpdate(id, &node); err != nil {
+	current.TrafficMultiplier = node.ParseTrafficMultiplier(current.Content)
+	if err := store.NodeUpdate(id, &current); err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
 		return
 	}
