@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Key } from "@heroui/react";
-import { Autocomplete, Button, Disclosure, Drawer, Dropdown, Form, Input, Label, ListBox, Select, Switch, Tag, TagGroup, TextArea, TextField } from "@heroui/react";
+import { Autocomplete, Button, Disclosure, Drawer, Dropdown, EmptyState, Form, Input, Label, ListBox, SearchField, Select, Switch, Tag, TagGroup, TextArea, TextField, useFilter } from "@heroui/react";
 import { FileArrowDown, Pencil, Plus, TrashBin } from "@gravity-ui/icons";
 import { useNodes } from "../../api/node";
 import { useRenamePreview, useRenameTemplates } from "../../api/rename";
@@ -10,18 +10,12 @@ import { useTags } from "../../api/tags";
 import { taskSaveFormats, type Task, type TaskConfig, type TaskSaveFormat, type TaskStep, useCreateTask, useUpdateTask } from "../../api/task";
 
 type TaskSourceType = "subscription" | "node" | "tag" | "result_task";
-type LandingSourceType = "subscription" | "node";
 
 const taskSourceTypes: { id: TaskSourceType; name: string }[] = [
     { id: "subscription", name: "订阅" },
     { id: "tag", name: "标签" },
     { id: "node", name: "节点" },
     { id: "result_task", name: "任务" },
-];
-
-const landingSourceTypes: { id: LandingSourceType; name: string }[] = [
-    { id: "subscription", name: "订阅" },
-    { id: "node", name: "节点" },
 ];
 
 const defaultConfig: TaskConfig = {
@@ -35,8 +29,7 @@ const defaultConfig: TaskConfig = {
     result_tasks: [],
     all_input_enable: 0,
     custom_landing_node_enable: 0,
-    landing_subscriptions: [],
-    landing_nodes: [],
+    landing_node: { id: "" },
     storage_enable: 0,
     storage_id: "",
     save_format: "Mihomo",
@@ -52,7 +45,7 @@ function newStep(): TaskStep {
         node_pool_delete: 0,
         skip_existing: 0,
         pass: {},
-        order: "none",
+        order: 0,
     };
 }
 
@@ -83,16 +76,8 @@ function initialSourceRows(task?: Task): TaskSourceType[] {
     return rows.length > 0 ? rows : ["subscription"];
 }
 
-function initialLandingRows(task?: Task): LandingSourceType[] {
-    if (!task) return ["subscription"];
-    const rows = [
-        ...(task.landing_subscriptions.length > 0 ? ["subscription" as const] : []),
-        ...(task.landing_nodes.length > 0 ? ["node" as const] : []),
-    ];
-    return rows.length > 0 ? rows : ["subscription"];
-}
-
 export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[]; onClose: () => void }) {
+    const { contains } = useFilter({ sensitivity: "base" });
     const { data: subscriptions = [] } = useSubscription();
     const { data: nodes = [] } = useNodes();
     const { data: tags = [] } = useTags();
@@ -117,7 +102,6 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
             : { ...defaultConfig, steps: [newStep()] }
     );
     const [sourceRows, setSourceRows] = useState<TaskSourceType[]>(() => initialSourceRows(task));
-    const [landingSourceRows, setLandingSourceRows] = useState<LandingSourceType[]>(() => initialLandingRows(task));
     const resultTasks = useMemo(() => tasks.filter((t) => t.id !== task?.id), [tasks, task?.id]);
     const allInputEnabled = formState.all_input_enable === 1; // 是否在本次编辑中动态使用全部订阅和单独节点。
 
@@ -183,37 +167,11 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
         setForm("result_tasks", []);
     };
 
-    const getLandingSourceValue = (type: LandingSourceType) => {
-        if (type === "subscription") return formState.landing_subscriptions.map((sub) => sub.id);
-        return formState.landing_nodes.map((node) => node.id);
-    };
-
-    const getLandingSourceOptions = (type: LandingSourceType) => {
-        if (type === "subscription") return subscriptions.map((sub) => ({ id: sub.id, name: sub.name }));
-        return nodes.map((node) => ({ id: node.id, name: node.name || node.id }));
-    };
-
-    const setLandingSourceValue = (type: LandingSourceType, ids: string[]) => {
-        if (type === "subscription") {
-            setForm("landing_subscriptions", ids.map((id) => ({ id })));
-            return;
-        }
-        setForm("landing_nodes", ids.map((id) => ({ id })));
-    };
-
-    const clearLandingSourceValue = (type: LandingSourceType) => {
-        if (type === "subscription") {
-            setForm("landing_subscriptions", []);
-            return;
-        }
-        setForm("landing_nodes", []);
-    };
-
     const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         const customLandingEnabled =
             formState.custom_landing_node_enable === 1 &&
-            (formState.landing_subscriptions.length > 0 || formState.landing_nodes.length > 0);
+            formState.landing_node.id !== "";
 
         const payload: TaskConfig = {
             ...formState,
@@ -224,8 +182,7 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
             tags: formState.tags.map((tag) => ({ id: tag.id })),
             result_tasks: formState.result_tasks.map((task) => ({ id: task.id })),
             custom_landing_node_enable: customLandingEnabled ? 1 : 0,
-            landing_subscriptions: customLandingEnabled ? formState.landing_subscriptions.map((sub) => ({ id: sub.id })) : [],
-            landing_nodes: customLandingEnabled ? formState.landing_nodes.map((node) => ({ id: node.id })) : [],
+            landing_node: customLandingEnabled ? { id: formState.landing_node.id } : { id: "" },
             storage_id: formState.storage_enable === 1 ? formState.storage_id : "",
             save_path: formState.storage_enable === 1 ? formState.save_path.trim() : "",
             node_rename_expression: formState.storage_enable === 1 ? formState.node_rename_expression.trim() : "",
@@ -319,41 +276,31 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
                             <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
                         </Switch>
                     </Disclosure.Heading>
-                    <Disclosure.Content className="!overflow-visible">
-                        <div className="flex flex-col gap-3 pt-2">
-                            {landingSourceRows.map((type, index) => (
-                                <div key={index} className="flex items-center gap-2">
-                                    <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[6rem_minmax(0,1fr)] sm:items-center">
-                                        <Select className="w-full" aria-label="落地来源类型" variant="secondary" value={type} onChange={(key) => {
-                                            const next = String(key) as LandingSourceType;
-                                            if (next === type) return;
-                                            clearLandingSourceValue(type);
-                                            setLandingSourceRows((rows) => rows.map((row, i) => (i === index ? next : row)));
-                                        }}>
-                                            <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
-                                            <Select.Popover>
-                                                <ListBox>
-                                                    {landingSourceTypes.filter((source) => source.id === type || !landingSourceRows.includes(source.id)).map((source) => (
-                                                        <ListBox.Item key={source.id} id={source.id}>{source.name}</ListBox.Item>
-                                                    ))}
-                                                </ListBox>
-                                            </Select.Popover>
-                                        </Select>
-                                        <TaskSourcePicker ariaLabel="选择落地来源" placeholder={`选择${landingSourceTypes.find((source) => source.id === type)!.name}`} value={getLandingSourceValue(type)} options={getLandingSourceOptions(type)} onChange={(ids) => setLandingSourceValue(type, ids)} />
-                                    </div>
-                                    <Button isIconOnly size="sm" variant="ghost" className="text-muted hover:text-danger" onPress={() => {
-                                        clearLandingSourceValue(type);
-                                        setLandingSourceRows((rows) => rows.filter((_, i) => i !== index));
-                                    }}>
-                                        <TrashBin className="size-4" />
-                                    </Button>
-                                </div>
-                            ))}
-                            <Button variant="ghost" className="w-full" isDisabled={landingSourceRows.length >= landingSourceTypes.length} onPress={() => setLandingSourceRows((rows) => [...rows, landingSourceTypes.find((source) => !rows.includes(source.id))!.id])}>
-                                <Plus className="size-4" />
-                                添加来源
-                            </Button>
-                        </div>
+                    <Disclosure.Content className="pt-2 !overflow-visible">
+                        <Autocomplete isRequired={formState.custom_landing_node_enable === 1} className="w-full" placeholder="选择节点" selectionMode="single" value={formState.landing_node.id || null} variant="secondary" onChange={(key) => setForm("landing_node", { id: typeof key === "string" ? key : "" })}>
+                            <Label>落地节点</Label>
+                            <Autocomplete.Trigger>
+                                <Autocomplete.Value />
+                                <Autocomplete.ClearButton />
+                                <Autocomplete.Indicator />
+                            </Autocomplete.Trigger>
+                            <Autocomplete.Popover>
+                                <Autocomplete.Filter filter={contains}>
+                                    <SearchField autoFocus name="landing-node-search" variant="secondary">
+                                        <SearchField.Group>
+                                            <SearchField.SearchIcon />
+                                            <SearchField.Input placeholder="搜索节点" />
+                                            <SearchField.ClearButton />
+                                        </SearchField.Group>
+                                    </SearchField>
+                                    <ListBox renderEmptyState={() => <EmptyState>没有可用节点</EmptyState>}>
+                                        {nodes.map((node) => (
+                                            <ListBox.Item key={node.id} id={node.id} textValue={node.name || node.id}>{node.name || node.id}<ListBox.ItemIndicator /></ListBox.Item>
+                                        ))}
+                                    </ListBox>
+                                </Autocomplete.Filter>
+                            </Autocomplete.Popover>
+                        </Autocomplete>
                     </Disclosure.Content>
                 </Disclosure>
             </div>
@@ -520,10 +467,12 @@ function TaskStepFields({ step, onChange }: { step: TaskStep; onChange: (step: T
                     </ListBox>
                 </Select.Popover>
             </Select>
-            <Select className="w-full" variant="secondary" value={step.order || "none"} onChange={(key) => onChange({ ...step, order: String(key) as TaskStep["order"] })}>
+            <Select className="w-full" variant="secondary" value={step.order} onChange={(key) => {
+                if (key === 0 || key === 1 || key === 2) onChange({ ...step, order: key });
+            }}>
                 <Label>处理顺序</Label>
                 <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
-                <Select.Popover><ListBox><ListBox.Item id="none">不排序</ListBox.Item><ListBox.Item id="delay">延迟优先</ListBox.Item><ListBox.Item id="speed">速度优先</ListBox.Item></ListBox></Select.Popover>
+                <Select.Popover><ListBox><ListBox.Item id={0}>不排序</ListBox.Item><ListBox.Item id={1}>延迟优先</ListBox.Item><ListBox.Item id={2}>速度优先</ListBox.Item></ListBox></Select.Popover>
             </Select>
             {step.type !== "country" && (
                 <TextField value={step.params?.url ?? ""} onChange={(value) => onChange({ ...step, params: { ...(step.params ?? {}), url: value } })}>

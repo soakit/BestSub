@@ -21,7 +21,7 @@ export type TaskPass = {
     exclude_country_codes: string[];
 };
 
-export type TaskOrder = "none" | "delay" | "speed";
+export type OrderType = 0 | 1 | 2;
 
 export const taskSaveFormats = [ // 任务结果支持的保存格式，与后端转换目标保持一致。
     "QuantumultX",
@@ -46,7 +46,7 @@ export type TaskStep = {
     node_pool_delete: number;
     skip_existing: number; // 对应检测结果已存在时是否跳过本步骤探测。
     pass: Partial<TaskPass>;
-    order: TaskOrder;
+    order: OrderType;
 };
 
 export type StorageConfig = {
@@ -69,8 +69,7 @@ export type TaskConfig = {
     result_tasks: TaskInputResult[];
     all_input_enable: number;
     custom_landing_node_enable: number;
-    landing_subscriptions: TaskSubscription[];
-    landing_nodes: TaskNode[];
+    landing_node: TaskNode;
 } & StorageConfig;
 
 export type TaskSubscription = {

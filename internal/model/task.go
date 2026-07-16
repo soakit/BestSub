@@ -35,8 +35,8 @@ type TaskInput struct {
 	Tags                    []TagRef          `gorm:"many2many:task_input_tags;constraint:OnDelete:CASCADE" json:"tags"`                                                              // 指定 tag 下的订阅和单独节点
 	ResultTasks             []TaskRef         `gorm:"many2many:task_input_results;joinForeignKey:TaskID;joinReferences:ResultTaskID;constraint:OnDelete:CASCADE" json:"result_tasks"` // 其他任务最近一次内存结果
 	CustomLandingNodeEnable uint8             `gorm:"column:custom_landing_node_enable;default:0" json:"custom_landing_node_enable"`                                                  // 是否使用自定义落地节点检测前置节点
-	LandingSubscriptions    []SubscriptionRef `gorm:"many2many:task_landing_subscriptions;constraint:OnDelete:CASCADE" json:"landing_subscriptions"`                                  // 自定义落地订阅来源
-	LandingNodes            []NodeRef         `gorm:"many2many:task_landing_nodes;constraint:OnDelete:CASCADE" json:"landing_nodes"`                                                  // 自定义落地节点来源
+	LandingNodeID           *string           `gorm:"column:landing_node_id;type:varchar(36)" json:"-"`                                                                               // 自定义落地节点 ID，未启用时为空
+	LandingNode             NodeRef           `gorm:"foreignKey:LandingNodeID;references:ID;constraint:OnDelete:SET NULL" json:"landing_node"`                                        // 自定义落地节点引用，接口只读写节点 ID
 }
 
 // TaskRef 是输入来源关联结果任务的轻量模型。
@@ -48,13 +48,22 @@ func (TaskRef) TableName() string {
 	return "tasks"
 }
 
+// OrderType 表示任务步骤的结果排序方式。
+type OrderType uint8
+
+const (
+	OrderNone  OrderType = iota // 不排序
+	OrderDelay                  // 按延迟排序,优先处理延迟小的
+	OrderSpeed                  // 按下载速度降序,优先处理下载速度大的
+)
+
 // TaskStep 保存单个检测步骤。
 type TaskStep struct {
 	Type           probe.ProbeType `json:"type"`                       // 步骤类型: delay/speed/country
 	Params         json.RawMessage `json:"params,omitempty"`           // 检测模块参数，由 pkg/probe 内部按类型解析
 	Concurrency    int             `json:"concurrency,omitempty"`      // 本步骤并发数
 	Pass           NodeFilter      `json:"pass,omitempty"`             // 通过条件
-	Order          string          `json:"order,omitempty"`            // 处理顺序: none/delay/speed
+	Order          OrderType       `json:"order"`                      // 处理顺序：0=不排序，1=延迟升序，2=下载速度降序
 	NodePoolDelete uint8           `json:"node_pool_delete,omitempty"` // 探测失败时是否从订阅节点池删除节点
 	SkipExisting   uint8           `json:"skip_existing,omitempty"`    // 对应检测结果已存在时是否跳过本步骤探测
 }
