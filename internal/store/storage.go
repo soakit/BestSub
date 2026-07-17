@@ -33,9 +33,6 @@ func StorageGet(id string) (model.Storage, bool) {
 }
 
 func StorageCreate(storage *model.Storage) error {
-	if storage == nil {
-		return fmt.Errorf("storage is required")
-	}
 	if err := db.Create(storage).Error; err != nil {
 		return err
 	}

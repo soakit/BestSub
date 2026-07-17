@@ -77,27 +77,23 @@ export function Storage() {
         setForm((prev) => ({ ...prev, params: { ...prev.params, [key]: value } }));
     };
 
-    const handleTypeChange = (value: unknown) => {
-        if (value === form.type) return;
-        if (value === "local" || value === "webdav" || value === "gist") {
-            setForm({ name: form.name, type: value, params: storageDefaultParams[value] });
-        }
+    const handleTypeChange = (type: StorageType) => {
+        setForm({ name: form.name, type, params: storageDefaultParams[type] });
     };
 
     const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const name = form.name.trim();
-        if (!name) return;
 
         // 按 internal/storage 的真实类型协议组装 params，避免把无关字段写入配置。
         let payload: StorageConfig;
         if (form.type === "local") {
             payload = { name, type: "local", params: {} };
         } else if (form.type === "webdav") {
-            if (!(form.params.endpoint ?? "").trim()) return;
-            payload = { name, type: "webdav", params: { endpoint: form.params.endpoint.trim(), username: (form.params.username ?? "").trim(), password: form.params.password ?? "" } };
+            if (!form.params.endpoint.trim()) return;
+            payload = { name, type: "webdav", params: { endpoint: form.params.endpoint.trim(), username: form.params.username.trim(), password: form.params.password } };
         } else {
-            if (!(form.params.token ?? "").trim() || !(form.params.gist_id ?? "").trim()) return;
+            if (!form.params.token.trim() || !form.params.gist_id.trim()) return;
             payload = { name, type: "gist", params: { token: form.params.token.trim(), gist_id: form.params.gist_id.trim() } };
         }
 
@@ -146,7 +142,7 @@ export function Storage() {
                                     isDisabled={testStorage.isPending}
                                     onPress={() => testStorage.mutate(storage, {
                                         onSuccess: () => toast.success(storage.name, { description: "测试成功" }),
-                                        onError: (err) => toast.danger(storage.name, { description: err instanceof Error ? err.message : "测试失败" }),
+                                        onError: (err) => toast.danger(storage.name, { description: err.message }),
                                     })}
                                 >
                                     <Flask className="size-4" />
@@ -172,12 +168,12 @@ export function Storage() {
                                 <Modal.Heading>{editing ? "编辑储存" : "添加储存"}</Modal.Heading>
                             </Modal.Header>
                             <Modal.Body>
-                                <Form id="storage-form" validationBehavior="native" className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
-                                    <TextField isRequired value={form.name} onChange={(value) => setForm({ ...form, name: value })}>
+                                <Form id="storage-form" className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
+                                    <TextField isRequired name="name" value={form.name} onChange={(value) => setForm({ ...form, name: value })}>
                                         <Label>名称</Label>
                                         <Input placeholder="储存名称" variant="secondary" />
                                     </TextField>
-                                    <Select className="w-full" variant="secondary" value={form.type} onChange={handleTypeChange}>
+                                    <Select className="w-full" variant="secondary" value={form.type} onChange={(value) => handleTypeChange(value as StorageType)}>
                                         <Label>类型</Label>
                                         <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
                                         <Select.Popover>
@@ -189,7 +185,7 @@ export function Storage() {
                                         </Select.Popover>
                                     </Select>
                                     {storageFields[form.type].map((field) => (
-                                        <TextField key={field.key} isRequired={field.required} value={form.params[field.key] ?? ""} onChange={(value) => setParam(field.key, value)}>
+                                        <TextField key={field.key} isRequired={field.required} name={field.key} value={form.params[field.key]} onChange={(value) => setParam(field.key, value)}>
                                             <Label>{field.label}</Label>
                                             <Input placeholder={field.placeholder} variant="secondary" />
                                         </TextField>
