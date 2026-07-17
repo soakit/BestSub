@@ -17,10 +17,11 @@ type Share struct { // 分享配置的持久化模型，内部 ID 与公开 Toke
 	ShareConfig           // 可编辑的分享配置。
 }
 
-type ShareConfig struct { // 分享名称、输入来源和筛选条件
-	Name       string     `gorm:"column:name;type:varchar(255);not null" json:"name" binding:"required"` // 后台显示名称。
-	Filter     NodeFilter `gorm:"column:filter;type:json;serializer:json" json:"filter"`                 // 节点筛选条件。
-	ShareInput            // 与任务前置节点一致的输入来源。
+type ShareConfig struct { // 分享名称、筛选、重命名和输入来源配置
+	Name                 string     `gorm:"column:name;type:varchar(255);not null" json:"name" binding:"required"` // 后台显示名称。
+	Filter               NodeFilter `gorm:"column:filter;type:json;serializer:json" json:"filter"`                 // 节点筛选条件。
+	NodeRenameExpression string     `gorm:"column:node_rename_expression;type:text" json:"node_rename_expression"` // 节点重命名表达式。
+	ShareInput                      // 与任务前置节点一致的输入来源。
 }
 
 type ShareInput struct { // 分享输入关联，只保存来源 ID
