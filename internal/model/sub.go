@@ -41,18 +41,18 @@ func (SubscriptionRef) TableName() string {
 }
 
 type SubscriptionConfig struct {
-	UrlType            URLType           `gorm:"column:url_type;default:0" json:"url_type"`                                   // URL 类型: 0=直接获取, 1=链接列表
-	Url                []string          `gorm:"column:url;not null;type:json;serializer:json" json:"url" binding:"required"` // 订阅链接列表
-	Enable             uint8             `gorm:"column:enable;default:1" json:"enable"`                                       // 是否启用
-	Name               string            `gorm:"column:name;type:varchar(255)" json:"name"`                                   // 名称备注
-	TagNames           []string          `gorm:"-" json:"tag_names"`                                                          // 标签名称，仅接口展示。
-	Header             map[string]string `gorm:"column:header;type:json;serializer:json" json:"header"`                       // 拉取订阅时的请求头
-	AutoUpdate         uint8             `gorm:"column:auto_update;default:1" json:"auto_update"`                             // 是否启用自动更新
-	CronExpr           string            `gorm:"column:cron_expr;type:varchar(64)" json:"cron_expr"`                          // Cron更新表达式
-	ProxyMode          ProxyMode         `gorm:"column:proxy_mode;default:0" json:"proxy_mode"`                               // 代理模式: 0=自动, 1=禁用, 2=启用
-	ProxyUrl           string            `gorm:"column:proxy_url;type:text" json:"proxy_url"`                                 // 更新时代理
-	ProtocolFilterMode uint8             `gorm:"column:protocol_filter_mode;default:0" json:"protocol_filter_mode"`           // 节点过滤模式: 0=不启用, 1=包含, 2=排除
-	ProtocolFilter     []string          `gorm:"column:protocol_filter;type:json;serializer:json" json:"protocol_filter"`     // 更新时节点过滤
+	UrlType            URLType           `gorm:"column:url_type;default:0" json:"url_type" binding:"oneof=0 1"`            // URL 类型: 0=直接获取, 1=链接列表
+	Url                []string          `gorm:"column:url;not null;type:json;serializer:json" json:"url" binding:"min=1"` // 订阅链接列表
+	Enable             uint8             `gorm:"column:enable;default:1" json:"enable"`                                    // 是否启用
+	Name               string            `gorm:"column:name;type:varchar(255)" json:"name"`                                // 名称备注
+	TagNames           []string          `gorm:"-" json:"tag_names"`                                                       // 标签名称，仅接口展示。
+	Header             map[string]string `gorm:"column:header;type:json;serializer:json" json:"header"`                    // 拉取订阅时的请求头
+	AutoUpdate         uint8             `gorm:"column:auto_update;default:1" json:"auto_update"`                          // 是否启用自动更新
+	CronExpr           string            `gorm:"column:cron_expr;type:varchar(64)" json:"cron_expr"`                       // Cron更新表达式
+	ProxyMode          ProxyMode         `gorm:"column:proxy_mode;default:0" json:"proxy_mode"`                            // 代理模式: 0=自动, 1=禁用, 2=启用
+	ProxyUrl           string            `gorm:"column:proxy_url;type:text" json:"proxy_url"`                              // 更新时代理
+	ProtocolFilterMode uint8             `gorm:"column:protocol_filter_mode;default:0" json:"protocol_filter_mode"`        // 节点过滤模式: 0=不启用, 1=包含, 2=排除
+	ProtocolFilter     []string          `gorm:"column:protocol_filter;type:json;serializer:json" json:"protocol_filter"`  // 更新时节点过滤
 }
 
 type SubscriptionStatus struct {

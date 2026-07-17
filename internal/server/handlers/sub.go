@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/node"
 	"github.com/bestruirui/bestsub/internal/server/middleware"
 	"github.com/bestruirui/bestsub/internal/server/resp"
 	"github.com/bestruirui/bestsub/internal/server/router"
@@ -47,7 +48,11 @@ func init() {
 }
 
 func list(c *gin.Context) {
-	resp.Success(c, store.SubscriptionList())
+	subscriptions := store.SubscriptionList()
+	for i := range subscriptions {
+		subscriptions[i].NodeNum = uint32(node.PoolCount(subscriptions[i].ID))
+	}
+	resp.Success(c, subscriptions)
 }
 
 func get(c *gin.Context) {
@@ -56,6 +61,7 @@ func get(c *gin.Context) {
 		resp.Error(c, http.StatusNotFound, resp.ErrResourceNotFound)
 		return
 	}
+	sub.NodeNum = uint32(node.PoolCount(sub.ID))
 	resp.Success(c, sub)
 }
 
@@ -86,10 +92,12 @@ func update(c *gin.Context) {
 }
 
 func delete(c *gin.Context) {
-	if err := store.SubscriptionDelete(c.Param("id")); err != nil {
+	id := c.Param("id")
+	if err := store.SubscriptionDelete(id); err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
 		return
 	}
+	node.PoolClear(id)
 	resp.Success(c, "subscription deleted successfully")
 }
 

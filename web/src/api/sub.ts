@@ -95,12 +95,10 @@ export type RefreshEvent = {
 type Listener = (ev: RefreshEvent) => void;
 
 let es: EventSource | null = null;
-let listeners: Set<Listener> = new Set();
-let connecting = false;
+const listeners = new Set<Listener>();
 
 function connect() {
-    if (es || connecting) return;
-    connecting = true;
+    if (es) return;
     es = new EventSource("/api/v1/sub/refresh", {
         withCredentials: true,
     });
@@ -117,19 +115,14 @@ function connect() {
     es.addEventListener("failed", onEvent);
 
     es.onerror = () => {
-        es?.close();
-        es = null;
-        connecting = false;
+        disconnect();
         setTimeout(() => { if (listeners.size > 0) connect(); }, 3000);
     };
-
-    connecting = false;
 }
 
 function disconnect() {
     es?.close();
     es = null;
-    connecting = false;
 }
 
 if (typeof document !== "undefined") {

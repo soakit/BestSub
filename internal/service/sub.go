@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/node"
 	"github.com/bestruirui/bestsub/internal/rhttp"
 	"github.com/bestruirui/bestsub/internal/server/stream"
 	"github.com/bestruirui/bestsub/internal/store"
@@ -33,9 +35,6 @@ type RefreshEvent struct {
 
 // RefreshSubscription 尝试启动订阅刷新任务。已在刷新时返回错误。
 func RefreshSubscription(id string) error {
-	if id == "" {
-		return fmt.Errorf("subscription id is required")
-	}
 	sub, ok := store.SubscriptionGet(id)
 	if !ok {
 		return fmt.Errorf("subscription %s not found", id)
@@ -62,22 +61,9 @@ func RefreshSubscription(id string) error {
 			proxy = ""
 		}
 
-		var urls []string
 		var err error
-		switch sub.UrlType {
-		case model.URLTypeDirect:
-			urls = sub.Url
-		case model.URLTypeList:
-			if len(sub.Url) == 0 {
-				RefreshEvents.Emit("failed", RefreshEvent{
-					SubID: id,
-					Type:  "failed",
-					Payload: map[string]any{
-						"message": "no url provided",
-					},
-				})
-				return
-			}
+		urls := sub.Url
+		if sub.UrlType == model.URLTypeList {
 			if proxy == "" {
 				urls, err = fetchUrlList(sub.Url[0], sub.Header, "direct")
 				if err != nil {
@@ -96,15 +82,6 @@ func RefreshSubscription(id string) error {
 				})
 				return
 			}
-		default:
-			RefreshEvents.Emit("failed", RefreshEvent{
-				SubID: id,
-				Type:  "failed",
-				Payload: map[string]any{
-					"message": fmt.Sprintf("unknown url_type: %d", sub.UrlType),
-				},
-			})
-			return
 		}
 
 		total := len(urls)
@@ -123,12 +100,12 @@ func RefreshSubscription(id string) error {
 
 			var urlStatus model.SubscriptionStatus
 			if sub.ProxyMode == model.ProxyModeAuto {
-				_, urlStatus, err = refreshOne(id, u, sub.Header, "direct")
+				urlStatus, err = refreshOne(id, u, sub.Header, "direct")
 				if err != nil {
-					_, urlStatus, err = refreshOne(id, u, sub.Header, sub.ProxyUrl)
+					urlStatus, err = refreshOne(id, u, sub.Header, sub.ProxyUrl)
 				}
 			} else {
-				_, urlStatus, err = refreshOne(id, u, sub.Header, proxy)
+				urlStatus, err = refreshOne(id, u, sub.Header, proxy)
 			}
 
 			if err != nil {
@@ -212,11 +189,11 @@ func fetchUrlList(listUrl string, header map[string]string, proxy string) ([]str
 	return urls, nil
 }
 
-// refreshOne 拉取单个 URL 的订阅内容，返回节点数和流量状态。
-func refreshOne(subID, rawUrl string, header map[string]string, proxy string) (uint32, model.SubscriptionStatus, error) {
+// refreshOne 拉取单个 URL 的订阅内容并写入节点池，返回流量状态。
+func refreshOne(subID, rawUrl string, header map[string]string, proxy string) (model.SubscriptionStatus, error) {
 	req, err := http.NewRequest(http.MethodGet, rawUrl, nil)
 	if err != nil {
-		return 0, model.SubscriptionStatus{}, fmt.Errorf("create request: %w", err)
+		return model.SubscriptionStatus{}, fmt.Errorf("create request: %w", err)
 	}
 	for k, v := range header {
 		req.Header.Set(k, v)
@@ -224,55 +201,50 @@ func refreshOne(subID, rawUrl string, header map[string]string, proxy string) (u
 
 	resp, err := rhttp.New(proxy).Do(req)
 	if err != nil {
-		return 0, model.SubscriptionStatus{}, fmt.Errorf("fetch: %w", err)
+		return model.SubscriptionStatus{}, fmt.Errorf("fetch: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, model.SubscriptionStatus{}, fmt.Errorf("status %d", resp.StatusCode)
+		return model.SubscriptionStatus{}, fmt.Errorf("status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, model.SubscriptionStatus{}, fmt.Errorf("read body: %w", err)
+		return model.SubscriptionStatus{}, fmt.Errorf("read body: %w", err)
 	}
 
 	// 解析 subscription-userinfo 响应头。
 	var status model.SubscriptionStatus
-	if info := resp.Header.Get("subscription-userinfo"); info != "" {
-		for _, field := range strings.Split(strings.ToLower(info), ";") {
-			k, v, ok := strings.Cut(strings.TrimSpace(field), "=")
-			if !ok {
-				continue
-			}
-			n, _ := strconv.ParseInt(v, 10, 64)
-			switch k {
-			case "upload", "download":
-				status.TrafficUsed += n
-			case "total":
-				status.TrafficTotal = n
-			case "expire":
-				if n > 0 {
-					status.ExpiresAt = time.Unix(n, 0)
-				}
+	for _, field := range strings.Split(strings.ToLower(resp.Header.Get("subscription-userinfo")), ";") {
+		k, v, ok := strings.Cut(strings.TrimSpace(field), "=")
+		if !ok {
+			continue
+		}
+		n, _ := strconv.ParseInt(v, 10, 64)
+		switch k {
+		case "upload", "download":
+			status.TrafficUsed += n
+		case "total":
+			status.TrafficTotal = n
+		case "expire":
+			if n > 0 {
+				status.ExpiresAt = time.Unix(n, 0)
 			}
 		}
 	}
 
-	convBody, err := Convert(body, ConvertTargetMihomo)
+	convBody, err := node.Convert(context.Background(), body, node.ConvertTargetMihomo)
 	if err != nil {
-		return 0, status, fmt.Errorf("convert: %w", err)
+		return status, fmt.Errorf("convert: %w", err)
 	}
 
-	var nodeNum uint32
 	for _, line := range bytes.Split(convBody, []byte("\n"))[1:] {
 		raw := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("  - ")))
 		if len(raw) == 0 {
 			continue
 		}
-		if store.NodePoolAdd(subID, raw) {
-			nodeNum++
-		}
+		node.PoolAdd(subID, raw)
 	}
-	return nodeNum, status, nil
+	return status, nil
 }

@@ -42,7 +42,7 @@ const defaultConfig: SubscriptionConfig = {
 export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void> }) {
     const state = useOverlayState();
     const [editing, setEditing] = useState<Subscription | null>(null);
-    const [formState, setFormState] = useState<Partial<SubscriptionConfig>>({});
+    const [formState, setFormState] = useState<SubscriptionConfig>(defaultConfig);
     const [headerPairs, setHeaderPairs] = useState<[string, string][]>([["user-agent", "clash.meta/v1.19.27"]]);
     const { data: allTags = [] } = useTags();
     const createSub = useCreateSubscription();
@@ -60,7 +60,7 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
         setEditing(sub ?? null);
         if (sub) {
             setFormState(sub);
-            setHeaderPairs(Object.entries(sub.header ?? {}));
+            setHeaderPairs(Object.entries(sub.header));
         } else {
             setFormState({ ...defaultConfig });
             setHeaderPairs([["user-agent", "clash.meta/v1.19.27"]]);
@@ -71,10 +71,8 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
     const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
-        if (!fd.get("name") || !fd.get("url")) return;
 
         const payload: SubscriptionConfig = {
-            ...defaultConfig,
             ...formState,
             name: String(fd.get("name")),
             url: String(fd.get("url")).split("\n").map((s) => s.trim()).filter(Boolean),
@@ -97,13 +95,13 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
                             <Modal.Heading>{editing ? "编辑订阅" : "添加订阅"}</Modal.Heading>
                         </Modal.Header>
                         <Modal.Body>
-                            <Form id="sub-form" validationBehavior="native" className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
-                                <TextField isRequired defaultValue={editing?.name ?? ""}>
+                            <Form id="sub-form" className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
+                                <TextField isRequired name="name" defaultValue={editing?.name ?? ""}>
                                     <Label>订阅名称</Label>
-                                    <Input name="name" placeholder="我的订阅" variant="secondary" />
+                                    <Input placeholder="我的订阅" variant="secondary" />
                                 </TextField>
 
-                                <TagGroup aria-label="链接类型" selectionMode="single" selectedKeys={new Set([String(formState.url_type ?? 0)])} onSelectionChange={(keys) => setForm("url_type", Number([...keys][0]))}>
+                                <TagGroup aria-label="链接类型" selectionMode="single" selectedKeys={new Set([String(formState.url_type)])} onSelectionChange={(keys) => setForm("url_type", Number([...keys][0]))}>
                                     <Label>链接类型</Label>
                                     <TagGroup.List className="flex w-full gap-2">
                                         <Tag id="0" className="flex-1 justify-center">直接获取</Tag>
@@ -111,12 +109,12 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
                                     </TagGroup.List>
                                 </TagGroup>
 
-                                <TextField isRequired defaultValue={editing ? editing.url.join("\n") : ""}>
+                                <TextField isRequired name="url" defaultValue={editing ? editing.url.join("\n") : ""}>
                                     <Label>订阅地址</Label>
-                                    <TextArea name="url" placeholder={formState.url_type === 1 ? "https://example.com/sublist" : "https://example.com/sub"} variant="secondary" />
+                                    <TextArea placeholder={formState.url_type === 1 ? "https://example.com/sublist" : "https://example.com/sub"} variant="secondary" />
                                 </TextField>
 
-                                <TagSelector value={allTags.filter((tag) => (formState.tag_names ?? []).includes(tag.name))} onChange={(tags) => setForm("tag_names", tags.map((tag) => tag.name))} />
+                                <TagSelector value={allTags.filter((tag) => formState.tag_names.includes(tag.name))} onChange={(tags) => setForm("tag_names", tags.map((tag) => tag.name))} />
 
                                 <Disclosure className="w-full" isExpanded={formState.auto_update === 1}>
                                     <Disclosure.Heading className="flex items-center">
@@ -146,7 +144,7 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
                                         </Disclosure.Trigger>
                                     </Disclosure.Heading>
                                     <Disclosure.Content className="flex flex-col gap-4 !overflow-visible">
-                                        <TagGroup aria-label="代理模式" className="pt-2" selectionMode="single" selectedKeys={new Set([String(formState.proxy_mode ?? 0)])} onSelectionChange={(keys) => setForm("proxy_mode", Number([...keys][0]))}>
+                                        <TagGroup aria-label="代理模式" className="pt-2" selectionMode="single" selectedKeys={new Set([String(formState.proxy_mode)])} onSelectionChange={(keys) => setForm("proxy_mode", Number([...keys][0]))}>
                                             <TagGroup.List className="flex w-full gap-2">
                                                 <Tag id="0" className="flex-1 justify-center">自动</Tag>
                                                 <Tag id="1" className="flex-1 justify-center">禁用</Tag>
@@ -171,7 +169,7 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
                                         </Disclosure.Trigger>
                                     </Disclosure.Heading>
                                     <Disclosure.Content className="flex flex-col gap-4 !overflow-visible">
-                                        <TagGroup aria-label="协议过滤" className="pt-2" selectionMode="single" selectedKeys={new Set([String(formState.protocol_filter_mode ?? 0)])} onSelectionChange={(keys) => setForm("protocol_filter_mode", Number([...keys][0]))}>
+                                        <TagGroup aria-label="协议过滤" className="pt-2" selectionMode="single" selectedKeys={new Set([String(formState.protocol_filter_mode)])} onSelectionChange={(keys) => setForm("protocol_filter_mode", Number([...keys][0]))}>
                                             <TagGroup.List className="flex w-full gap-2">
                                                 <Tag id="0" className="flex-1 justify-center">不启用</Tag>
                                                 <Tag id="1" className="flex-1 justify-center">包含</Tag>
@@ -185,7 +183,7 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
                                                 placeholder="选择协议"
                                                 selectionMode="multiple"
                                                 variant="secondary"
-                                                value={formState.protocol_filter ?? []}
+                                                value={formState.protocol_filter}
                                                 onChange={(keys: Key | Key[] | null) => setForm("protocol_filter", (Array.isArray(keys) ? keys : keys ? [keys] : []).map(String))}
                                             >
                                                 <Label>协议列表</Label>

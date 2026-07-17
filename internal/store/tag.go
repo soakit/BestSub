@@ -35,11 +35,7 @@ func TagList() []model.Tag {
 }
 
 // TagResourceIDs 从 tag 缓存返回关联订阅 ID 和单独节点 ID。
-func TagResourceIDs(tags []model.Tag) ([]string, []string) {
-	if len(tags) == 0 {
-		return nil, nil
-	}
-
+func TagResourceIDs(tags []model.TagRef) ([]string, []string) {
 	subIDs := []string{}
 	nodeIDs := []string{}
 	seenSub := map[string]struct{}{}
@@ -101,20 +97,21 @@ func TagSetSubscriptionNames(id string, names []string) error {
 	}
 	for _, tag := range tagCache.GetAll() {
 		_, want := selected[tag.Name]
-		has := slices.ContainsFunc(tag.Subscriptions, func(sub model.TagSubscription) bool { return sub.ID == id })
+		has := slices.ContainsFunc(tag.Subscriptions, func(sub model.SubscriptionRef) bool { return sub.ID == id })
 		if want == has {
 			continue
 		}
 		if want {
-			if err := db.Omit("Subscriptions.*").Model(&model.Tag{ID: tag.ID}).Association("Subscriptions").Append(&model.TagSubscription{ID: id}); err != nil {
+			if err := db.Omit("Subscriptions.*").Model(&model.Tag{ID: tag.ID}).Association("Subscriptions").Append(&model.SubscriptionRef{ID: id}); err != nil {
 				return err
 			}
-			tag.Subscriptions = append(tag.Subscriptions, model.TagSubscription{ID: id})
+			tag.Subscriptions = append(tag.Subscriptions, model.SubscriptionRef{ID: id})
 		} else {
-			if err := db.Model(&model.Tag{ID: tag.ID}).Association("Subscriptions").Delete(&model.TagSubscription{ID: id}); err != nil {
+			if err := db.Model(&model.Tag{ID: tag.ID}).Association("Subscriptions").Delete(&model.SubscriptionRef{ID: id}); err != nil {
 				return err
 			}
-			tag.Subscriptions = slices.DeleteFunc(tag.Subscriptions, func(sub model.TagSubscription) bool { return sub.ID == id })
+			tag.Subscriptions = slices.DeleteFunc(tag.Subscriptions, func(sub model.SubscriptionRef) bool { return sub.ID == id })
+			tag.Subscriptions = append([]model.SubscriptionRef(nil), tag.Subscriptions...)
 		}
 		tagCache.Set(tag.ID, tag)
 	}
@@ -128,20 +125,21 @@ func TagSetNodeNames(id string, names []string) error {
 	}
 	for _, tag := range tagCache.GetAll() {
 		_, want := selected[tag.Name]
-		has := slices.ContainsFunc(tag.Nodes, func(node model.TagNode) bool { return node.ID == id })
+		has := slices.ContainsFunc(tag.Nodes, func(node model.NodeRef) bool { return node.ID == id })
 		if want == has {
 			continue
 		}
 		if want {
-			if err := db.Omit("Nodes.*").Model(&model.Tag{ID: tag.ID}).Association("Nodes").Append(&model.TagNode{ID: id}); err != nil {
+			if err := db.Omit("Nodes.*").Model(&model.Tag{ID: tag.ID}).Association("Nodes").Append(&model.NodeRef{ID: id}); err != nil {
 				return err
 			}
-			tag.Nodes = append(tag.Nodes, model.TagNode{ID: id})
+			tag.Nodes = append(tag.Nodes, model.NodeRef{ID: id})
 		} else {
-			if err := db.Model(&model.Tag{ID: tag.ID}).Association("Nodes").Delete(&model.TagNode{ID: id}); err != nil {
+			if err := db.Model(&model.Tag{ID: tag.ID}).Association("Nodes").Delete(&model.NodeRef{ID: id}); err != nil {
 				return err
 			}
-			tag.Nodes = slices.DeleteFunc(tag.Nodes, func(node model.TagNode) bool { return node.ID == id })
+			tag.Nodes = slices.DeleteFunc(tag.Nodes, func(node model.NodeRef) bool { return node.ID == id })
+			tag.Nodes = append([]model.NodeRef(nil), tag.Nodes...)
 		}
 		tagCache.Set(tag.ID, tag)
 	}

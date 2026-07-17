@@ -29,12 +29,17 @@ func InitDB() error {
 		new(model.Tag),
 		new(model.Storage),
 		new(model.Task),
+		new(model.Share),
 		new(model.Setting),
+		new(model.RenameTemplate),
 	)
 }
 
 func InitStore() error {
 	if err := initSetting(); err != nil {
+		return err
+	}
+	if err := initRenameTemplate(); err != nil {
 		return err
 	}
 	if err := UserInit(); err != nil {
@@ -53,6 +58,9 @@ func InitStore() error {
 		return err
 	}
 	if err := initTask(); err != nil {
+		return err
+	}
+	if err := initShare(); err != nil {
 		return err
 	}
 	return nil

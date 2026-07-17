@@ -4,7 +4,7 @@ export const pageImports = {
   subscription: () => import("../components/subscription"),
   node: () => import("../components/node"),
   task: () => import("../components/task"),
-  sharing: () => import("../components/Sharing"),
+  sharing: () => import("../components/share"),
   setting: () => import("../components/setting"),
 };
 

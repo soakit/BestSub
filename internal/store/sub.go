@@ -72,7 +72,6 @@ func SubscriptionList() []model.Subscription {
 	subs := make([]model.Subscription, 0, subCache.Len())
 	for _, sub := range subCache.GetAll() {
 		sub.TagNames = TagNamesBySubscription(sub.ID)
-		sub.NodeNum = uint32(NodePoolCount(sub.ID))
 		subs = append(subs, sub)
 	}
 	return subs
@@ -82,7 +81,6 @@ func SubscriptionGet(id string) (model.Subscription, bool) {
 	sub, ok := subCache.Get(id)
 	if ok {
 		sub.TagNames = TagNamesBySubscription(sub.ID)
-		sub.NodeNum = uint32(NodePoolCount(sub.ID))
 	}
 	return sub, ok
 }
