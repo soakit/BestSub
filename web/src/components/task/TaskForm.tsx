@@ -381,18 +381,9 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
                                 </Dropdown.Popover>
                             </Dropdown>
                         </div>
-                        <TextArea rows={2} name="node_rename_expression" placeholder="{{.Country.NameZh}}-{{.Index}}" variant="secondary" />
-                        {formState.storage_enable === 1 && formState.node_rename_expression.trim() && (
-                            <span className={`text-xs ${renamePreview.isError ? "text-danger" : "text-muted"}`}>
-                                {renamePreview.isPending
-                                    ? "预览中"
-                                    : renamePreview.isError
-                                        ? renamePreview.error.message
-                                        : renamePreview.data
-                                            ? `预览：${renamePreview.data.result}`
-                                            : null}
-                            </span>
-                        )}
+                        <TextArea rows={2} name="node_rename_expression" placeholder="{{.Country.NameZh}}-{{.Index}}" variant="secondary" />                        <span className={`text-xs ${renamePreview.isError ? "text-danger" : "text-muted"}`}>
+                            预览：{renamePreview.isError ? renamePreview.error.message : renamePreview.data?.result}
+                        </span>
                     </TextField>
                     <TextField value={formState.save_path} onChange={(value) => setForm("save_path", value)}>
                         <Label>保存路径</Label>
