@@ -1,12 +1,6 @@
 import { Pencil, TrashBin, Server, Thunderbolt, Globe } from "@gravity-ui/icons";
 import type { Node } from "../../api/node";
 
-// country_code 为 ISO 3166-1 alpha-2，转成国旗 emoji（两个字母映射到区域指示符）
-function countryFlag(code: string): string {
-    if (!/^[A-Za-z]{2}$/.test(code)) return "";
-    return String.fromCodePoint(...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
-}
-
 export function NodeItem({
     node,
     onEdit,
@@ -18,7 +12,6 @@ export function NodeItem({
 }) {
     // delay 为 0 表示未测试，其余按可用/不可用配色
     const delayLabel = node.delay > 0 ? `${node.delay}ms` : "-";
-    const flag = countryFlag(node.country_code);
 
     return (
         <div className="bg-surface rounded-2xl p-4 flex flex-col h-full">
@@ -35,13 +28,15 @@ export function NodeItem({
             </div>
 
             <div className="grid grid-cols-2 gap-2 flex-1">
+                <div className="col-span-2 bg-surface-secondary rounded-xl p-3 flex flex-col gap-2">
+                    <div className="flex items-center gap-1 text-accent"><Globe className="size-4" /><span className="text-xs font-medium text-muted">落地</span></div>
+                    <div className="flex flex-1 items-end justify-end gap-2 text-xl text-foreground leading-none">
+                        {node.country_name ? <><span>{node.country_name}</span><span className={`fi fi-${node.country_code.toLowerCase()}`} aria-hidden="true" /></> : "-"}
+                    </div>
+                </div>
                 <div className="bg-surface-secondary rounded-xl p-3 flex flex-col gap-2">
                     <div className="flex items-center gap-1 text-accent"><Thunderbolt className="size-4" /><span className="text-xs font-medium text-muted">延迟</span></div>
                     <div className="flex-1 flex items-end justify-end text-xl text-foreground leading-none">{delayLabel}</div>
-                </div>
-                <div className="bg-surface-secondary rounded-xl p-3 flex flex-col gap-2">
-                    <div className="flex items-center gap-1 text-accent"><Globe className="size-4" /><span className="text-xs font-medium text-muted">落地</span></div>
-                    <div className="flex-1 flex items-end justify-end text-xl text-foreground leading-none">{flag || node.country_code || "-"}</div>
                 </div>
                 <div className="bg-surface-secondary rounded-xl p-3 flex flex-col gap-2">
                     <div className="flex items-center gap-1 text-accent"><Server className="size-4" /><span className="text-xs font-medium text-muted">测速</span></div>

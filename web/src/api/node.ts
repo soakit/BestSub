@@ -5,12 +5,14 @@ export type NodeConfig = {
     name: string;
     tag_names: string[];
     content: string;
+    landing_only: number;
 };
 
 export type NodeInfo = {
     delay: number;
     download_speed: number; // 下载速度，单位 kb/s。
     country_code: string;
+    country_name: string;
     traffic_multiplier: number;
 };
 
@@ -34,6 +36,13 @@ export function useCreateNode() {
         mutationFn: (payload: NodeConfig) =>
             apiRequest<Node>("/api/v1/node/create", { method: "POST", body: payload }),
         onSuccess: () => qc.invalidateQueries({ queryKey }),
+    });
+}
+
+export function useConvertNode() {
+    return useMutation({
+        mutationFn: (content: string) =>
+            apiRequest<string>("/api/v1/node/convert", { method: "POST", body: { content } }),
     });
 }
 

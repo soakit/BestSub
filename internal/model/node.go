@@ -24,15 +24,17 @@ func (NodeRef) TableName() string {
 }
 
 type NodeConfig struct {
-	Name     string   `gorm:"column:name;type:varchar(255)" json:"name"`                  // 节点名称
-	TagNames []string `gorm:"-" json:"tag_names"`                                         // 标签名称，仅接口展示。
-	Content  string   `gorm:"column:content;type:text" json:"content" binding:"required"` // 节点内容
+	Name        string   `gorm:"column:name;type:varchar(255)" json:"name"`                  // 节点名称
+	TagNames    []string `gorm:"-" json:"tag_names"`                                         // 标签名称，仅接口展示。
+	Content     string   `gorm:"column:content;type:text" json:"content" binding:"required"` // 节点内容
+	LandingOnly uint8    `gorm:"column:landing_only;default:0" json:"landing_only"`          // 是否仅作落地节点。
 }
 
 type NodeInfo struct { // 保存节点检测结果和从名称提取的附加信息
 	Delay             uint16  `gorm:"column:delay;default:0" json:"delay"`                           // 延迟，单位毫秒；0 表示未知或未测试
 	DownloadSpeed     uint32  `gorm:"column:download_speed;default:0" json:"download_speed"`         // 下载速度，单位 kb/s；0 表示未知或未测试
 	CountryCode       string  `gorm:"column:country_code;type:char(2)" json:"country_code"`          // 落地国家，ISO 3166-1 alpha-2 两位字母代码
+	CountryName       string  `gorm:"-" json:"country_name"`                                         // 中文国家名称，仅接口展示，不落库
 	TrafficMultiplier float32 `gorm:"column:traffic_multiplier;default:1" json:"traffic_multiplier"` // 流量扣费倍率；节点名称未标注时为 1
 }
 

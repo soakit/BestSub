@@ -71,7 +71,7 @@ func NodeUpdateInfo(id string, info model.NodeInfo) error {
 }
 
 func NodeUpdate(id string, node *model.Node) error {
-	if err := db.Model(&model.Node{}).Where("id = ?", id).Select("name", "content", "traffic_multiplier").Updates(node).Error; err != nil {
+	if err := db.Model(&model.Node{}).Where("id = ?", id).Select("name", "content", "traffic_multiplier", "landing_only").Updates(node).Error; err != nil {
 		return err
 	}
 	if err := TagSetNodeNames(id, node.TagNames); err != nil {
@@ -82,6 +82,7 @@ func NodeUpdate(id string, node *model.Node) error {
 		n.Name = node.Name
 		n.Content = node.Content
 		n.TrafficMultiplier = node.TrafficMultiplier
+		n.LandingOnly = node.LandingOnly
 		nodeCache.Set(id, n)
 	}
 	return nil
