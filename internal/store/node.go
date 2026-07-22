@@ -51,6 +51,8 @@ func NodeList() []model.Node {
 	return nodes
 }
 
+func NodeLen() int { return nodeCache.Len() }
+
 func NodeGet(id string) (model.Node, bool) {
 	node, ok := nodeCache.Get(id)
 	if ok {

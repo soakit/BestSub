@@ -89,6 +89,8 @@ func TaskList() []model.Task {
 	return tasks
 }
 
+func TaskLen() int { return taskCache.Len() }
+
 func TaskGet(id string) (model.Task, bool) {
 	return taskCache.Get(id)
 }

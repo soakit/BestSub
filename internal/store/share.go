@@ -37,6 +37,8 @@ func ShareList() []model.Share {
 	return shares
 }
 
+func ShareLen() int { return shareCache.Len() }
+
 func ShareGet(id string) (model.Share, bool) {
 	return shareCache.Get(id)
 }

@@ -6,6 +6,13 @@ export function formatBytes(bytes: number): string {
     return `${(bytes / 1024 ** i).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
+// 日期格式化；空值、无效时间或后端零值时间戳显示占位符 "-"
+export function formatDate(value: string): string {
+    if (!value || value.startsWith("0001")) return "-";
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? "-" : date.toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
 // 相对时间；空值或后端零值时间戳(0001-...)显示占位符 "-"
 export function formatRelativeTime(s: string): string {
     if (!s || s.startsWith("0001")) return "-";

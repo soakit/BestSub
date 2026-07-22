@@ -1,6 +1,7 @@
 import type { Page } from "../store";
 
 export const pageImports = {
+  dashboard: () => import("../components/dashboard"),
   subscription: () => import("../components/subscription"),
   node: () => import("../components/node"),
   task: () => import("../components/task"),

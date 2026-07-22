@@ -9,6 +9,7 @@ import { AppShell } from "./components/AppShell";
 import Login from "./components/Login";
 
 const Subscription = lazy(pageImports.subscription);
+const Dashboard = lazy(pageImports.dashboard);
 const Node = lazy(pageImports.node);
 const Task = lazy(pageImports.task);
 const Sharing = lazy(pageImports.sharing);
@@ -64,6 +65,7 @@ export default function App() {
     <AppShell>
       <Suspense fallback={null}>
         <BootLoadingGate>
+          {visiblePage === 'dashboard' && <Dashboard />}
           {visiblePage === 'subscription' && <Subscription />}
           {visiblePage === 'node' && <Node />}
           {visiblePage === 'task' && <Task />}

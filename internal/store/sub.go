@@ -77,6 +77,8 @@ func SubscriptionList() []model.Subscription {
 	return subs
 }
 
+func SubscriptionLen() int { return subCache.Len() }
+
 func SubscriptionGet(id string) (model.Subscription, bool) {
 	sub, ok := subCache.Get(id)
 	if ok {

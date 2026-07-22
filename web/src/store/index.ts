@@ -1,13 +1,14 @@
 import { type ElementType } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Signal, Server, Pulse, Link as LinkIcon, Gear } from '@gravity-ui/icons';
+import { Signal, Server, Pulse, Link as LinkIcon, Gear, Sphere } from '@gravity-ui/icons';
 
-export type Page = 'subscription' | 'node' | 'task' | 'sharing' | 'setting';
+export type Page = 'dashboard' | 'subscription' | 'node' | 'task' | 'sharing' | 'setting';
 
 export type NavItem = { id: Page; label: string; icon: ElementType };
 
 export const MAIN_NAV_ITEMS: NavItem[] = [
+  { id: 'dashboard', label: '概览', icon: Sphere },
   { id: 'subscription', label: '订阅', icon: Signal },
   { id: 'node', label: '节点', icon: Server },
   { id: 'task', label: '任务', icon: Pulse },
@@ -26,7 +27,7 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      currentPage: 'subscription',
+      currentPage: 'dashboard',
       setCurrentPage: (page) => set({ currentPage: page }),
     }),
     { name: 'bestsub-app' }
