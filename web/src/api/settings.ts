@@ -27,6 +27,13 @@ export function useInterfaces() {
     });
 }
 
+export function useVersion() {
+    return useQuery({
+        queryKey: ["version"],
+        queryFn: () => apiRequest<string>("/api/v1/version"),
+    });
+}
+
 export function useSetSetting() {
     const qc = useQueryClient();
     return useMutation({

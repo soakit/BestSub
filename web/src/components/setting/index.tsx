@@ -7,6 +7,8 @@ import { Dns } from "./Dns";
 import { Storage } from "./Storage";
 import { Tag } from "./Tag";
 import { Rename } from "./Rename";
+import { Account } from "./Account";
+import { About } from "./About";
 
 export default function Setting() {
   const { data, isLoading } = useSettingList();
@@ -31,12 +33,14 @@ export default function Setting() {
   return (
     <PageLayout title="设置">
       <div className="columns-1 gap-4 lg:columns-2 lg:gap-8 [&>.settings-category]:mb-4 [&>.settings-category]:break-inside-avoid lg:[&>.settings-category]:mb-8">
+        <About />
         <Appearance val={val} set={set} />
         <General val={val} set={set} />
         <Dns val={val} set={set} />
         <Storage />
         <Rename />
         <Tag />
+        <Account />
       </div>
     </PageLayout>
   );
