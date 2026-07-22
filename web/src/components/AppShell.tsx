@@ -140,7 +140,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [settings]);
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-background font-sans text-foreground">
+    <div className="fixed inset-0 flex overflow-hidden bg-background font-sans text-foreground">
       <DesktopSidebar />
       <main className="flex min-h-0 flex-1 flex-col pt-4 px-4">
         {children}
