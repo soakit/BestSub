@@ -2,11 +2,16 @@
 
 重命名表达式使用 Go `text/template` 语法。预览接口和正式重命名都调用 `Rename`，因此解析、字段、函数和错误行为一致。
 
-字段名区分大小写，只支持下表中的真实字段；不存在 `.index`、`.name` 或 `.Name`。
+字段名区分大小写；`.Sub` 是完整的 `model.Subscription`，可访问其导出字段。下表列出重命名常用字段，不存在顶层 `.index`、`.name` 或 `.Name`。
 
-| 字段 | 含义 |
+| 常用字段 | 含义 |
 | --- | --- |
 | `.Index` | 最终输出顺序中的序号 |
+| `.Sub` | 节点的订阅来源信息，类型为 `model.Subscription`；单独节点时为零值 |
+| `.Sub.Name` | 节点的订阅来源名称，单独节点为空 |
+| `.Sub.TrafficTotal` | 节点订阅的总流量，单位字节 |
+| `.Sub.TrafficUsed` | 节点订阅的已用流量，单位字节 |
+| `.Sub.ExpiresAt` | 节点订阅的到期时间，类型为 `time.Time` |
 | `.Delay` | 延迟，单位毫秒 |
 | `.DownloadSpeed` | 下载速度，单位 kb/s |
 | `.TrafficMultiplier` | 流量扣费倍率，节点名称未标注时为 1 |
@@ -25,7 +30,7 @@
 }
 ```
 
-接口固定使用 `.Index=1`、`.Delay=123`、`.DownloadSpeed=10240`、`.TrafficMultiplier=0.5`、`.Country.Alpha2=CN` 预览。
+接口固定使用 `.Index=1`、零值 `.Sub`、`.Delay=123`、`.DownloadSpeed=10240`、`.TrafficMultiplier=0.5`、`.Country.Alpha2=CN` 预览。
 
 ```json
 {

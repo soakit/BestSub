@@ -129,5 +129,7 @@ func renamePreview(c *gin.Context) {
 
 // renderRenamePreview 使用固定节点生成可信示例，保证预览和保存结果一致。
 func renderRenamePreview(expression string) (string, error) {
-	return node.Rename(model.NodeInfo{Delay: 123, DownloadSpeed: 10240, CountryCode: "CN", TrafficMultiplier: 0.5}, 1, expression)
+	return node.Rename(node.Node{
+		Info: model.NodeInfo{Delay: 123, DownloadSpeed: 10240, CountryCode: "CN", TrafficMultiplier: 0.5},
+	}, 1, expression)
 }

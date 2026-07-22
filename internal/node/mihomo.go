@@ -15,7 +15,7 @@ func Mihomo(nodes []Node, renameExpression string) ([]byte, error) {
 	for i, node := range nodes {
 		raw := strings.TrimSpace(node.Raw.Text)
 		if renameExpression != "" {
-			name, err := Rename(node.Info, uint32(i+1), renameExpression)
+			name, err := Rename(node, uint32(i+1), renameExpression)
 			if err != nil {
 				return nil, fmt.Errorf("rename node %d: %w", i+1, err)
 			}

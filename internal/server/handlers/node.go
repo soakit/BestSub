@@ -60,8 +60,7 @@ func nodeConvert(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	current.Content = string(bytes.TrimPrefix(bytes.Split(converted, []byte("\n"))[1], []byte(" - ")))
-	resp.Success(c, current.Content)
+	resp.Success(c, string(bytes.TrimSpace(converted[13:])))
 }
 
 func nodeCreate(c *gin.Context) {
