@@ -13,6 +13,10 @@ export default function Subscription() {
     const modalRef = useRef<(sub?: Subscription) => void>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
+    if (isLoading) {
+        return <PageLayout title="订阅"><div className="flex min-h-[28rem] items-center justify-center"><Spinner size="sm" /></div></PageLayout>;
+    }
+
     const refreshAll = async () => {
         if (!subscriptions?.length) return;
         for (const sub of subscriptions) {
@@ -35,11 +39,7 @@ export default function Subscription() {
             }
         >
             <>
-                {isLoading ? (
-                    <div className="flex flex-1 items-center justify-center">
-                        <Spinner size="sm" />
-                    </div>
-                ) : subscriptions?.length === 0 ? (
+                {subscriptions?.length === 0 ? (
                     <div className="flex flex-1 items-center justify-center text-sm text-foreground/60">暂无订阅</div>
                 ) : (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4">

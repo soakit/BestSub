@@ -14,6 +14,10 @@ export default function TaskPage() {
     const [editorKey, setEditorKey] = useState(0);
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
+    if (isLoading) {
+        return <PageLayout title="任务"><div className="flex min-h-[28rem] items-center justify-center"><Spinner size="sm" /></div></PageLayout>;
+    }
+
     return (
         <PageLayout
             title="任务"
@@ -24,11 +28,7 @@ export default function TaskPage() {
             }
         >
             <>
-                {isLoading ? (
-                    <div className="flex flex-1 items-center justify-center">
-                        <Spinner size="sm" />
-                    </div>
-                ) : tasks?.length === 0 ? (
+                {tasks?.length === 0 ? (
                     <div className="flex flex-1 items-center justify-center text-sm text-foreground/60">暂无任务</div>
                 ) : (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4">

@@ -12,6 +12,10 @@ export default function Node() {
     const modalRef = useRef<(node?: Node) => void>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
+    if (isLoading) {
+        return <PageLayout title="节点"><div className="flex min-h-[28rem] items-center justify-center"><Spinner size="sm" /></div></PageLayout>;
+    }
+
     return (
         <PageLayout
             title="节点"
@@ -22,11 +26,7 @@ export default function Node() {
             }
         >
             <>
-                {isLoading ? (
-                    <div className="flex flex-1 items-center justify-center">
-                        <Spinner size="sm" />
-                    </div>
-                ) : nodes?.length === 0 ? (
+                {nodes?.length === 0 ? (
                     <div className="flex flex-1 items-center justify-center text-sm text-foreground/60">暂无节点</div>
                 ) : (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4">

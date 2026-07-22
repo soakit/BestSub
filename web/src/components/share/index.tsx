@@ -14,6 +14,10 @@ export default function SharePage() {
     const [editorKey, setEditorKey] = useState(0); // 每次打开时重建表单，避免保留上次输入。
     const [deletingId, setDeletingId] = useState<string | null>(null); // 等待确认删除的分享 ID。
 
+    if (isLoading) {
+        return <PageLayout title="分享"><div className="flex min-h-[28rem] items-center justify-center"><Spinner size="sm" /></div></PageLayout>;
+    }
+
     const openEditor = (share?: Share) => {
         setEditing(share ?? null);
         setEditorKey((key) => key + 1);
@@ -30,11 +34,7 @@ export default function SharePage() {
             }
         >
             <>
-                {isLoading ? (
-                    <div className="flex flex-1 items-center justify-center">
-                        <Spinner size="sm" />
-                    </div>
-                ) : shares?.length === 0 ? (
+                {shares?.length === 0 ? (
                     <div className="flex flex-1 items-center justify-center text-sm text-foreground/60">暂无分享</div>
                 ) : (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4">
