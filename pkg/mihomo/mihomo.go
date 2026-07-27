@@ -60,20 +60,19 @@ func UpdateDNSConfig(defaultServers, mainServers []string) {
 // NewTransport 创建单代理或链式代理的 http.Transport。
 // inner 为空时链路为本地 -> outer -> 目标；否则为本地 -> outer -> inner -> 目标。
 func NewTransport(outer, inner []byte, interfaceName string) (*http.Transport, func() error, error) {
-	var mapping map[string]any
-	if err := yaml.Unmarshal(outer, &mapping); err != nil {
+	var outerMapping map[string]any
+	if err := yaml.Unmarshal(outer, &outerMapping); err != nil {
 		return nil, nil, fmt.Errorf("parse outer: %w", err)
 	}
-	if mapping == nil {
+	if outerMapping == nil {
 		return nil, nil, fmt.Errorf("nil outer mapping")
 	}
 	// 网卡只绑定 outer，inner 的服务器连接必须经过 outer。
 	if interfaceName != "" {
-		mapping["interface-name"] = interfaceName
+		outerMapping["interface-name"] = interfaceName
 	}
 
-	processed, _ := yaml.Marshal(mapping)
-	outerAdapter, err := createAdapter(processed)
+	outerAdapter, err := createAdapter(outerMapping)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create outer adapter: %w", err)
 	}
@@ -81,7 +80,16 @@ func NewTransport(outer, inner []byte, interfaceName string) (*http.Transport, f
 		return buildTransport(outerAdapter), outerAdapter.Close, nil
 	}
 
-	innerAdapter, err := createAdapter(inner, proxydialer.New(outerAdapter, false))
+	var innerMapping map[string]any
+	if err := yaml.Unmarshal(inner, &innerMapping); err != nil {
+		outerAdapter.Close()
+		return nil, nil, fmt.Errorf("parse inner: %w", err)
+	}
+	if innerMapping == nil {
+		outerAdapter.Close()
+		return nil, nil, fmt.Errorf("nil inner mapping")
+	}
+	innerAdapter, err := createAdapter(innerMapping, proxydialer.New(outerAdapter, false))
 	if err != nil {
 		// inner 创建失败后 outer 已无调用方持有，必须立即释放。
 		outerAdapter.Close()
@@ -98,16 +106,9 @@ func NewTransport(outer, inner []byte, interfaceName string) (*http.Transport, f
 	}, nil
 }
 
-// createAdapter 从单条 YAML 代理配置创建 outbound.ProxyAdapter
+// createAdapter 从已解析的单条代理配置创建 outbound.ProxyAdapter
 // chainDialer 可选，用于链式代理：inner 通过该 dialer 连接自己的服务器
-func createAdapter(raw []byte, chainDialer ...constant.Dialer) (outbound.ProxyAdapter, error) {
-	var mapping map[string]any
-	if err := yaml.Unmarshal(raw, &mapping); err != nil {
-		return nil, fmt.Errorf("parse raw: %w", err)
-	}
-	if mapping == nil {
-		return nil, fmt.Errorf("nil mapping")
-	}
+func createAdapter(mapping map[string]any, chainDialer ...constant.Dialer) (outbound.ProxyAdapter, error) {
 	proxyType, _ := mapping["type"].(string)
 
 	// 链式代理 dialer，设到 option.DialerForAPI 后构造函数会自动使用
