@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type SyntheticEvent } from "react";
 import { AlertDialog, Button, Form, Label, Modal, TextArea, TextField, useOverlayState } from "@heroui/react";
 import { Pencil, Plus, TrashBin } from "@gravity-ui/icons";
 import { type RenameTemplate, useCreateRenameTemplate, useDeleteRenameTemplate, useRenamePreview, useRenameTemplates, useUpdateRenameTemplate } from "../../api/rename";
@@ -46,7 +46,7 @@ export function Rename() {
         editorState.open();
     };
 
-    const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!normalizedExpression || templateExists || !previewReady) return;
         if (editing) {

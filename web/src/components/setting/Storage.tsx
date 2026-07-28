@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type SyntheticEvent } from "react";
 import { AlertDialog, Button, Form, Input, Label, ListBox, Modal, Select, TextField, toast, useOverlayState } from "@heroui/react";
 import { Cloud, Flask, Pencil, Plus, TrashBin } from "@gravity-ui/icons";
 import { type Storage, type StorageConfig, type StorageType, useCreateStorage, useDeleteStorage, useStorages, useTestStorage, useUpdateStorage } from "../../api/storage";
@@ -81,7 +81,7 @@ export function Storage() {
         setForm({ name: form.name, type, params: storageDefaultParams[type] });
     };
 
-    const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         const name = form.name.trim();
 
