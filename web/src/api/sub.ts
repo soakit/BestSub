@@ -25,7 +25,6 @@ export type SubscriptionConfig = {
     auto_update: number;
     cron_expr: string;
     proxy_mode: number;
-    proxy_url: string;
     protocol_filter_mode: number;
     protocol_filter: string[];
 };

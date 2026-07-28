@@ -19,9 +19,30 @@ const (
 type ProxyMode uint8
 
 const (
-	ProxyModeAuto     ProxyMode = iota // 自动：先直连，失败后使用代理
+	ProxyModeAuto     ProxyMode = iota // 自动：先直连，失败后使用全局代理
 	ProxyModeDisabled                  // 禁用：始终直连
-	ProxyModeEnabled                   // 启用：始终使用代理
+	ProxyModeEnabled                   // 启用：始终使用全局代理
+)
+
+// NodeType 表示 Mihomo 支持的节点协议类型。
+type NodeType string
+
+const (
+	NodeTypeSS        NodeType = "ss"        // Shadowsocks 节点。
+	NodeTypeSSR       NodeType = "ssr"       // ShadowsocksR 节点。
+	NodeTypeSOCKS5    NodeType = "socks5"    // SOCKS5 节点。
+	NodeTypeHTTP      NodeType = "http"      // HTTP 代理节点。
+	NodeTypeVMess     NodeType = "vmess"     // VMess 节点。
+	NodeTypeVLESS     NodeType = "vless"     // VLESS 节点。
+	NodeTypeSnell     NodeType = "snell"     // Snell 节点。
+	NodeTypeTrojan    NodeType = "trojan"    // Trojan 节点。
+	NodeTypeHysteria  NodeType = "hysteria"  // Hysteria 节点。
+	NodeTypeHysteria2 NodeType = "hysteria2" // Hysteria 2 节点。
+	NodeTypeWireGuard NodeType = "wireguard" // WireGuard 节点。
+	NodeTypeTUIC      NodeType = "tuic"      // TUIC 节点。
+	NodeTypeSSH       NodeType = "ssh"       // SSH 节点。
+	NodeTypeMieru     NodeType = "mieru"     // Mieru 节点。
+	NodeTypeAnyTLS    NodeType = "anytls"    // AnyTLS 节点。
 )
 
 type Subscription struct {
@@ -50,9 +71,8 @@ type SubscriptionConfig struct {
 	AutoUpdate         uint8             `gorm:"column:auto_update;default:1" json:"auto_update"`                          // 是否启用自动更新
 	CronExpr           string            `gorm:"column:cron_expr;type:varchar(64)" json:"cron_expr"`                       // Cron更新表达式
 	ProxyMode          ProxyMode         `gorm:"column:proxy_mode;default:0" json:"proxy_mode"`                            // 代理模式: 0=自动, 1=禁用, 2=启用
-	ProxyUrl           string            `gorm:"column:proxy_url;type:text" json:"proxy_url"`                              // 更新时代理
 	ProtocolFilterMode uint8             `gorm:"column:protocol_filter_mode;default:0" json:"protocol_filter_mode"`        // 节点过滤模式: 0=不启用, 1=包含, 2=排除
-	ProtocolFilter     []string          `gorm:"column:protocol_filter;type:json;serializer:json" json:"protocol_filter"`  // 更新时节点过滤
+	ProtocolFilter     []NodeType        `gorm:"column:protocol_filter;type:json;serializer:json" json:"protocol_filter"`  // 更新时节点过滤
 }
 
 type SubscriptionStatus struct {

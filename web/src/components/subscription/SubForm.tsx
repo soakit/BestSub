@@ -1,6 +1,6 @@
 import { useImperativeHandle, useState } from "react";
 import type { Key } from "@heroui/react";
-import { Button, Switch, Modal, Form, TextField, Label, Input, useOverlayState, TextArea, TagGroup, Tag, Disclosure, CloseButton, Autocomplete, ListBox } from "@heroui/react";
+import { Button, Switch, Modal, Form, TextField, Label, Input, useOverlayState, TextArea, TagGroup, Tag, Disclosure, CloseButton, Autocomplete, ListBox, ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { useCreateSubscription, useUpdateSubscription, type Subscription, type SubscriptionConfig } from "../../api/sub";
 import { useTags } from "../../api/tags";
 import { TagSelector } from "../common/TagSelector";
@@ -34,7 +34,6 @@ const defaultConfig: SubscriptionConfig = {
     auto_update: 1,
     cron_expr: "0 */6 * * *",
     proxy_mode: 0,
-    proxy_url: "",
     protocol_filter_mode: 0,
     protocol_filter: [],
 };
@@ -101,13 +100,13 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
                                     <Input placeholder="我的订阅" variant="secondary" />
                                 </TextField>
 
-                                <TagGroup aria-label="链接类型" selectionMode="single" selectedKeys={new Set([String(formState.url_type)])} onSelectionChange={(keys) => setForm("url_type", Number([...keys][0]))}>
-                                    <Label>链接类型</Label>
-                                    <TagGroup.List className="flex w-full gap-2">
-                                        <Tag id="0" className="flex-1 justify-center">直接获取</Tag>
-                                        <Tag id="1" className="flex-1 justify-center">链接列表</Tag>
-                                    </TagGroup.List>
-                                </TagGroup>
+                                <div className="flex w-full flex-col gap-2">
+                                    <span className="text-sm text-foreground">链接类型</span>
+                                    <ToggleButtonGroup aria-label="链接类型" disallowEmptySelection fullWidth selectionMode="single" selectedKeys={new Set([String(formState.url_type)])} onSelectionChange={(keys) => setForm("url_type", Number([...keys][0]))}>
+                                        <ToggleButton id="0">直接获取</ToggleButton>
+                                        <ToggleButton id="1"><ToggleButtonGroup.Separator />链接列表</ToggleButton>
+                                    </ToggleButtonGroup>
+                                </div>
 
                                 <TextField isRequired name="url" defaultValue={editing ? editing.url.join("\n") : ""}>
                                     <Label>订阅地址</Label>
@@ -136,30 +135,14 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
                                     </Disclosure.Content>
                                 </Disclosure>
 
-                                <Disclosure className="w-full">
-                                    <Disclosure.Heading>
-                                        <Disclosure.Trigger className="flex w-full items-center justify-between text-sm font-medium text-foreground">
-                                            代理设置
-                                            <Disclosure.Indicator />
-                                        </Disclosure.Trigger>
-                                    </Disclosure.Heading>
-                                    <Disclosure.Content className="flex flex-col gap-4 !overflow-visible">
-                                        <TagGroup aria-label="代理模式" className="pt-2" selectionMode="single" selectedKeys={new Set([String(formState.proxy_mode)])} onSelectionChange={(keys) => setForm("proxy_mode", Number([...keys][0]))}>
-                                            <TagGroup.List className="flex w-full gap-2">
-                                                <Tag id="0" className="flex-1 justify-center">自动</Tag>
-                                                <Tag id="1" className="flex-1 justify-center">禁用</Tag>
-                                                <Tag id="2" className="flex-1 justify-center">启用</Tag>
-                                            </TagGroup.List>
-                                        </TagGroup>
-
-                                        {formState.proxy_mode === 2 && (
-                                            <TextField defaultValue={editing?.proxy_url ?? ""}>
-                                                <Label>代理地址</Label>
-                                                <Input name="proxy_url" placeholder="http://127.0.0.1:7890" variant="secondary" onChange={(e) => setForm("proxy_url", e.target.value)} />
-                                            </TextField>
-                                        )}
-                                    </Disclosure.Content>
-                                </Disclosure>
+                                <div className="flex w-full flex-col gap-2">
+                                    <span className="text-sm text-foreground">代理模式</span>
+                                    <ToggleButtonGroup aria-label="代理模式" disallowEmptySelection fullWidth selectionMode="single" selectedKeys={new Set([String(formState.proxy_mode)])} onSelectionChange={(keys) => setForm("proxy_mode", Number([...keys][0]))}>
+                                        <ToggleButton id="0">自动</ToggleButton>
+                                        <ToggleButton id="1"><ToggleButtonGroup.Separator />禁用</ToggleButton>
+                                        <ToggleButton id="2"><ToggleButtonGroup.Separator />启用</ToggleButton>
+                                    </ToggleButtonGroup>
+                                </div>
 
                                 <Disclosure className="w-full">
                                     <Disclosure.Heading>
@@ -169,13 +152,11 @@ export function SubForm({ ref }: { ref?: React.Ref<(sub?: Subscription) => void>
                                         </Disclosure.Trigger>
                                     </Disclosure.Heading>
                                     <Disclosure.Content className="flex flex-col gap-4 !overflow-visible">
-                                        <TagGroup aria-label="协议过滤" className="pt-2" selectionMode="single" selectedKeys={new Set([String(formState.protocol_filter_mode)])} onSelectionChange={(keys) => setForm("protocol_filter_mode", Number([...keys][0]))}>
-                                            <TagGroup.List className="flex w-full gap-2">
-                                                <Tag id="0" className="flex-1 justify-center">不启用</Tag>
-                                                <Tag id="1" className="flex-1 justify-center">包含</Tag>
-                                                <Tag id="2" className="flex-1 justify-center">排除</Tag>
-                                            </TagGroup.List>
-                                        </TagGroup>
+                                        <ToggleButtonGroup aria-label="协议过滤" className="pt-2" disallowEmptySelection fullWidth selectionMode="single" selectedKeys={new Set([String(formState.protocol_filter_mode)])} onSelectionChange={(keys) => setForm("protocol_filter_mode", Number([...keys][0]))}>
+                                            <ToggleButton id="0">不启用</ToggleButton>
+                                            <ToggleButton id="1"><ToggleButtonGroup.Separator />包含</ToggleButton>
+                                            <ToggleButton id="2"><ToggleButtonGroup.Separator />排除</ToggleButton>
+                                        </ToggleButtonGroup>
 
                                         {formState.protocol_filter_mode !== 0 && (
                                             <Autocomplete

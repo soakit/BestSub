@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"net/http"
+	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +24,7 @@ import (
 
 var (
 	refreshMu                   sync.Map                                                                     // 按订阅 ID 保存刷新互斥锁。
+	protocolTypePattern         = regexp.MustCompile(`"type":"([^"\\]+)"`)                                   // 匹配转换后的单行 JSON 节点协议字段。
 	subscriptionCronParser      = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow) // 解析 5 段订阅 Cron 表达式。
 	subscriptionCron            = cron.New(cron.WithParser(subscriptionCronParser))                          // 执行订阅自动更新的内存调度器。
 	subscriptionScheduleMu      sync.Mutex                                                                   // 保护订阅调度项的增删改。
@@ -141,24 +142,36 @@ func RefreshSubscription(id string) error {
 			subscriptionRefreshWG.Done()
 		}()
 
-		proxy := sub.ProxyUrl
+		proxies := []string{""} // 空值表示使用全局代理配置。
 		switch sub.ProxyMode {
 		case model.ProxyModeDisabled:
-			proxy = "direct"
+			proxies[0] = "direct"
 		case model.ProxyModeAuto:
-			proxy = ""
+			proxies = []string{"direct", ""}
 		}
 
 		var err error
 		urls := sub.Url
 		if sub.UrlType == model.URLTypeList {
-			if proxy == "" {
-				urls, err = fetchUrlList(ctx, sub.Url[0], sub.Header, "direct")
-				if err != nil {
-					urls, err = fetchUrlList(ctx, sub.Url[0], sub.Header, sub.ProxyUrl)
+			for _, proxy := range proxies {
+				body, _, fetchErr := rhttp.Get(ctx, sub.Url[0], proxy, sub.Header)
+				if fetchErr != nil {
+					err = fetchErr
+					continue
 				}
-			} else {
-				urls, err = fetchUrlList(ctx, sub.Url[0], sub.Header, proxy)
+				urls = nil
+				for _, line := range strings.Split(strings.TrimSpace(string(body)), "\n") {
+					line = strings.TrimSpace(line)
+					if line != "" && !strings.HasPrefix(line, "#") {
+						urls = append(urls, line)
+					}
+				}
+				if len(urls) == 0 {
+					err = fmt.Errorf("no urls found in list")
+					continue
+				}
+				err = nil
+				break
 			}
 			if err != nil {
 				if ctx.Err() != nil {
@@ -193,13 +206,55 @@ func RefreshSubscription(id string) error {
 			})
 
 			var urlStatus model.SubscriptionStatus
-			if sub.ProxyMode == model.ProxyModeAuto {
-				urlStatus, err = refreshOne(ctx, id, u, sub.Header, "direct")
-				if err != nil {
-					urlStatus, err = refreshOne(ctx, id, u, sub.Header, sub.ProxyUrl)
+			err = nil
+			for _, proxy := range proxies {
+				body, header, fetchErr := rhttp.Get(ctx, u, proxy, sub.Header)
+				if fetchErr != nil {
+					err = fetchErr
+					continue
 				}
-			} else {
-				urlStatus, err = refreshOne(ctx, id, u, sub.Header, proxy)
+
+				urlStatus = model.SubscriptionStatus{}
+				for _, field := range strings.Split(strings.ToLower(header.Get("subscription-userinfo")), ";") {
+					k, v, ok := strings.Cut(strings.TrimSpace(field), "=")
+					if !ok {
+						continue
+					}
+					n, _ := strconv.ParseInt(v, 10, 64)
+					switch k {
+					case "upload", "download":
+						urlStatus.TrafficUsed += n
+					case "total":
+						urlStatus.TrafficTotal = n
+					case "expire":
+						if n > 0 {
+							urlStatus.ExpiresAt = time.Unix(n, 0)
+						}
+					}
+				}
+
+				convBody, convertErr := node.Convert(ctx, body, node.ConvertTargetMihomo)
+				if convertErr != nil {
+					err = fmt.Errorf("convert: %w", convertErr)
+					continue
+				}
+
+				for _, line := range bytes.Split(convBody, []byte("\n"))[1:] {
+					raw := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("  - ")))
+					if len(raw) == 0 {
+						continue
+					}
+					if sub.ProtocolFilterMode == 1 || sub.ProtocolFilterMode == 2 {
+						matches := protocolTypePattern.FindSubmatch(raw)
+						matched := len(matches) == 2 && slices.Contains(sub.ProtocolFilter, model.NodeType(matches[1]))
+						if (sub.ProtocolFilterMode == 1 && !matched) || (sub.ProtocolFilterMode == 2 && matched) {
+							continue
+						}
+					}
+					node.PoolAdd(sub.ID, raw)
+				}
+				err = nil
+				break
 			}
 
 			if err != nil {
@@ -250,98 +305,4 @@ func RefreshSubscription(id string) error {
 		RefreshEvents.Emit("done", RefreshEvent{SubID: id, Type: "done"})
 	}()
 	return nil
-}
-
-// fetchUrlList 拉取 URL 列表内容，按行解析为多个 URL。
-func fetchUrlList(ctx context.Context, listUrl string, header map[string]string, proxy string) ([]string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, listUrl, nil)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range header {
-		req.Header.Set(k, v)
-	}
-	resp, err := rhttp.New(proxy).Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	var urls []string
-	for _, line := range strings.Split(strings.TrimSpace(string(body)), "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" && !strings.HasPrefix(line, "#") {
-			urls = append(urls, line)
-		}
-	}
-	if len(urls) == 0 {
-		return nil, fmt.Errorf("no urls found in list")
-	}
-	return urls, nil
-}
-
-// refreshOne 拉取单个 URL 的订阅内容并写入节点池，返回流量状态。
-func refreshOne(ctx context.Context, subID, rawUrl string, header map[string]string, proxy string) (model.SubscriptionStatus, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawUrl, nil)
-	if err != nil {
-		return model.SubscriptionStatus{}, fmt.Errorf("create request: %w", err)
-	}
-	for k, v := range header {
-		req.Header.Set(k, v)
-	}
-
-	resp, err := rhttp.New(proxy).Do(req)
-	if err != nil {
-		return model.SubscriptionStatus{}, fmt.Errorf("fetch: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return model.SubscriptionStatus{}, fmt.Errorf("status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return model.SubscriptionStatus{}, fmt.Errorf("read body: %w", err)
-	}
-
-	// 解析 subscription-userinfo 响应头。
-	var status model.SubscriptionStatus
-	for _, field := range strings.Split(strings.ToLower(resp.Header.Get("subscription-userinfo")), ";") {
-		k, v, ok := strings.Cut(strings.TrimSpace(field), "=")
-		if !ok {
-			continue
-		}
-		n, _ := strconv.ParseInt(v, 10, 64)
-		switch k {
-		case "upload", "download":
-			status.TrafficUsed += n
-		case "total":
-			status.TrafficTotal = n
-		case "expire":
-			if n > 0 {
-				status.ExpiresAt = time.Unix(n, 0)
-			}
-		}
-	}
-
-	convBody, err := node.Convert(ctx, body, node.ConvertTargetMihomo)
-	if err != nil {
-		return status, fmt.Errorf("convert: %w", err)
-	}
-
-	for _, line := range bytes.Split(convBody, []byte("\n"))[1:] {
-		raw := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("  - ")))
-		if len(raw) == 0 {
-			continue
-		}
-		node.PoolAdd(subID, raw)
-	}
-	return status, nil
 }
