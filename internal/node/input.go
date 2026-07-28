@@ -85,8 +85,7 @@ func ResolveInput(input Input, allInput uint8) ([]Node, error) {
 				continue
 			}
 			seenFingerprints[current.Raw.Fingerprint] = struct{}{}
-			// 任务结果只复用原文和检测信息，不继承原任务的写回来源。
-			nodes = append(nodes, Node{Raw: current.Raw, Info: current.Info})
+			nodes = append(nodes, current)
 		}
 	}
 	return nodes, nil

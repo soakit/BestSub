@@ -14,22 +14,19 @@ func ResultCount(taskID string) int {
 	return len(resultNodes[taskID])
 }
 
-// ResultNodes 返回指定任务结果的独立切片。
+// ResultNodes 返回指定任务结果，调用方只读使用。
 func ResultNodes(taskID string) []Node {
 	resultMu.RLock()
 	defer resultMu.RUnlock()
-	return append([]Node(nil), resultNodes[taskID]...)
+	return resultNodes[taskID]
 }
 
-// SaveResult 保存任务结果，不继承输入节点的写回来源。
+// SaveResult 保存任务结果及其原始来源，供下游任务回写来源数据。
 func SaveResult(taskID string, nodes []Node) {
 	resultMu.Lock()
 	defer resultMu.Unlock()
 
-	resultNodes[taskID] = make([]Node, 0, len(nodes))
-	for _, current := range nodes {
-		resultNodes[taskID] = append(resultNodes[taskID], Node{Raw: current.Raw, Info: current.Info})
-	}
+	resultNodes[taskID] = nodes
 }
 
 // DeleteResult 删除指定任务的结果节点。
