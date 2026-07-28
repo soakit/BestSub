@@ -5,10 +5,22 @@ import type { Share } from "../../api/share";
 export function ShareItem({ share, onEdit, onDelete }: { share: Share; onEdit: (share: Share) => void; onDelete: (share: Share) => void }) {
     const shareUrl = `${window.location.origin}/share/${share.token}`;
 
-    // 剪贴板写入失败时保留当前页面状态并明确提示用户。
     const copyLink = async () => {
         try {
-            await navigator.clipboard.writeText(shareUrl);
+            if (window.isSecureContext && navigator.clipboard) {
+                await navigator.clipboard.writeText(shareUrl);
+            } else {
+                const textarea = document.createElement("textarea");
+                textarea.value = shareUrl;
+                textarea.readOnly = true;
+                textarea.style.position = "fixed";
+                textarea.style.opacity = "0";
+                document.body.appendChild(textarea);
+                textarea.select();
+                const copied = document.execCommand("copy");
+                textarea.remove();
+                if (!copied) throw new Error("复制命令执行失败");
+            }
             toast.success(share.name, { description: "分享链接已复制" });
         } catch {
             toast.danger(share.name, { description: "复制失败，请手动复制" });
