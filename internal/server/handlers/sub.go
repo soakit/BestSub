@@ -75,6 +75,10 @@ func create(c *gin.Context) {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
 		return
 	}
+	if err := service.SyncSubscriptionSchedule(sub); err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
 	resp.Success(c, sub)
 }
 
@@ -88,6 +92,10 @@ func update(c *gin.Context) {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
 		return
 	}
+	if err := service.SyncSubscriptionSchedule(model.Subscription{ID: c.Param("id"), SubscriptionConfig: config}); err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
 	resp.Success(c, "subscription updated successfully")
 }
 
@@ -97,6 +105,7 @@ func delete(c *gin.Context) {
 		resp.Error(c, http.StatusInternalServerError, resp.ErrDatabase)
 		return
 	}
+	service.RemoveSubscriptionSchedule(id)
 	node.PoolClear(id)
 	resp.Success(c, "subscription deleted successfully")
 }

@@ -17,10 +17,21 @@ import (
 	"github.com/bestruirui/bestsub/internal/rhttp"
 	"github.com/bestruirui/bestsub/internal/server/stream"
 	"github.com/bestruirui/bestsub/internal/store"
+
+	"github.com/charmbracelet/log"
+	"github.com/robfig/cron/v3"
 )
 
 var (
-	refreshMu sync.Map
+	refreshMu                   sync.Map                                                                     // 按订阅 ID 保存刷新互斥锁。
+	subscriptionCronParser      = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow) // 解析 5 段订阅 Cron 表达式。
+	subscriptionCron            = cron.New(cron.WithParser(subscriptionCronParser))                          // 执行订阅自动更新的内存调度器。
+	subscriptionScheduleMu      sync.Mutex                                                                   // 保护订阅调度项的增删改。
+	subscriptionScheduleEntries = map[string]cron.EntryID{}                                                  // 记录订阅 ID 对应的 Cron 调度项。
+	subscriptionLifecycleMu     sync.Mutex                                                                   // 保护订阅刷新生命周期和 WaitGroup Add/Wait 边界。
+	subscriptionCtx             context.Context                                                              // 取消全部订阅刷新的生命周期上下文。
+	subscriptionCancel          context.CancelFunc                                                           // 结束订阅刷新生命周期。
+	subscriptionRefreshWG       sync.WaitGroup                                                               // 等待已经启动的订阅刷新退出。
 
 	// RefreshEvents 是订阅刷新过程的实时事件流。
 	RefreshEvents = stream.New()
@@ -31,6 +42,73 @@ type RefreshEvent struct {
 	SubID   string         `json:"sub_id"`
 	Type    string         `json:"type"`
 	Payload map[string]any `json:"payload"`
+}
+
+// StartSubscriptionScheduler 注册已有订阅并启动自动更新调度器。
+func StartSubscriptionScheduler() error {
+	subscriptionLifecycleMu.Lock()
+	subscriptionCtx, subscriptionCancel = context.WithCancel(context.Background())
+	subscriptionLifecycleMu.Unlock()
+	for _, sub := range store.SubscriptionList() {
+		if err := SyncSubscriptionSchedule(sub); err != nil {
+			subscriptionLifecycleMu.Lock()
+			subscriptionCancel()
+			subscriptionCtx = nil
+			subscriptionCancel = nil
+			subscriptionLifecycleMu.Unlock()
+			return err
+		}
+	}
+	subscriptionCron.Start()
+	return nil
+}
+
+// StopSubscriptionScheduler 停止调度并等待已经启动的订阅刷新退出。
+func StopSubscriptionScheduler() {
+	subscriptionLifecycleMu.Lock()
+	if subscriptionCancel != nil {
+		subscriptionCancel()
+	}
+	subscriptionCtx = nil
+	subscriptionCancel = nil
+	subscriptionLifecycleMu.Unlock()
+	<-subscriptionCron.Stop().Done()
+	subscriptionRefreshWG.Wait()
+}
+
+// SyncSubscriptionSchedule 按订阅最新配置替换对应调度项。
+func SyncSubscriptionSchedule(sub model.Subscription) error {
+	if sub.AutoUpdate != 1 {
+		RemoveSubscriptionSchedule(sub.ID)
+		return nil
+	}
+
+	subscriptionScheduleMu.Lock()
+	defer subscriptionScheduleMu.Unlock()
+	if entryID, ok := subscriptionScheduleEntries[sub.ID]; ok {
+		subscriptionCron.Remove(entryID)
+		delete(subscriptionScheduleEntries, sub.ID)
+	}
+	entryID, err := subscriptionCron.AddFunc(strings.TrimSpace(sub.CronExpr), func() {
+		if err := RefreshSubscription(sub.ID); err != nil {
+			log.Errorf("subscription %s scheduled refresh error: %v", sub.ID, err)
+		}
+	})
+	if err != nil {
+		return err
+	}
+	subscriptionScheduleEntries[sub.ID] = entryID
+	return nil
+}
+
+// RemoveSubscriptionSchedule 删除指定订阅的自动更新调度项。
+func RemoveSubscriptionSchedule(id string) {
+	subscriptionScheduleMu.Lock()
+	defer subscriptionScheduleMu.Unlock()
+	if entryID, ok := subscriptionScheduleEntries[id]; ok {
+		subscriptionCron.Remove(entryID)
+		delete(subscriptionScheduleEntries, id)
+	}
 }
 
 // RefreshSubscription 尝试启动订阅刷新任务。已在刷新时返回错误。
@@ -46,11 +124,21 @@ func RefreshSubscription(id string) error {
 	if !mu.TryLock() {
 		return fmt.Errorf("refresh already in progress")
 	}
+	subscriptionLifecycleMu.Lock()
+	ctx := subscriptionCtx
+	if ctx == nil || ctx.Err() != nil {
+		subscriptionLifecycleMu.Unlock()
+		mu.Unlock()
+		return fmt.Errorf("subscription scheduler is stopped")
+	}
+	subscriptionRefreshWG.Add(1)
+	subscriptionLifecycleMu.Unlock()
 
 	go func() {
 		defer func() {
-			mu.Unlock()
 			runtime.GC()
+			mu.Unlock()
+			subscriptionRefreshWG.Done()
 		}()
 
 		proxy := sub.ProxyUrl
@@ -65,14 +153,17 @@ func RefreshSubscription(id string) error {
 		urls := sub.Url
 		if sub.UrlType == model.URLTypeList {
 			if proxy == "" {
-				urls, err = fetchUrlList(sub.Url[0], sub.Header, "direct")
+				urls, err = fetchUrlList(ctx, sub.Url[0], sub.Header, "direct")
 				if err != nil {
-					urls, err = fetchUrlList(sub.Url[0], sub.Header, sub.ProxyUrl)
+					urls, err = fetchUrlList(ctx, sub.Url[0], sub.Header, sub.ProxyUrl)
 				}
 			} else {
-				urls, err = fetchUrlList(sub.Url[0], sub.Header, proxy)
+				urls, err = fetchUrlList(ctx, sub.Url[0], sub.Header, proxy)
 			}
 			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
 				RefreshEvents.Emit("failed", RefreshEvent{
 					SubID: id,
 					Type:  "failed",
@@ -88,6 +179,9 @@ func RefreshSubscription(id string) error {
 		status := model.SubscriptionStatus{RefreshedAt: time.Now()}
 
 		for i, u := range urls {
+			if ctx.Err() != nil {
+				return
+			}
 			RefreshEvents.Emit("progress", RefreshEvent{
 				SubID: id,
 				Type:  "progress",
@@ -100,15 +194,18 @@ func RefreshSubscription(id string) error {
 
 			var urlStatus model.SubscriptionStatus
 			if sub.ProxyMode == model.ProxyModeAuto {
-				urlStatus, err = refreshOne(id, u, sub.Header, "direct")
+				urlStatus, err = refreshOne(ctx, id, u, sub.Header, "direct")
 				if err != nil {
-					urlStatus, err = refreshOne(id, u, sub.Header, sub.ProxyUrl)
+					urlStatus, err = refreshOne(ctx, id, u, sub.Header, sub.ProxyUrl)
 				}
 			} else {
-				urlStatus, err = refreshOne(id, u, sub.Header, proxy)
+				urlStatus, err = refreshOne(ctx, id, u, sub.Header, proxy)
 			}
 
 			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
 				RefreshEvents.Emit("progress", RefreshEvent{
 					SubID: id,
 					Type:  "progress",
@@ -156,8 +253,8 @@ func RefreshSubscription(id string) error {
 }
 
 // fetchUrlList 拉取 URL 列表内容，按行解析为多个 URL。
-func fetchUrlList(listUrl string, header map[string]string, proxy string) ([]string, error) {
-	req, err := http.NewRequest(http.MethodGet, listUrl, nil)
+func fetchUrlList(ctx context.Context, listUrl string, header map[string]string, proxy string) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, listUrl, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -190,8 +287,8 @@ func fetchUrlList(listUrl string, header map[string]string, proxy string) ([]str
 }
 
 // refreshOne 拉取单个 URL 的订阅内容并写入节点池，返回流量状态。
-func refreshOne(subID, rawUrl string, header map[string]string, proxy string) (model.SubscriptionStatus, error) {
-	req, err := http.NewRequest(http.MethodGet, rawUrl, nil)
+func refreshOne(ctx context.Context, subID, rawUrl string, header map[string]string, proxy string) (model.SubscriptionStatus, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawUrl, nil)
 	if err != nil {
 		return model.SubscriptionStatus{}, fmt.Errorf("create request: %w", err)
 	}
@@ -234,7 +331,7 @@ func refreshOne(subID, rawUrl string, header map[string]string, proxy string) (m
 		}
 	}
 
-	convBody, err := node.Convert(context.Background(), body, node.ConvertTargetMihomo)
+	convBody, err := node.Convert(ctx, body, node.ConvertTargetMihomo)
 	if err != nil {
 		return status, fmt.Errorf("convert: %w", err)
 	}
