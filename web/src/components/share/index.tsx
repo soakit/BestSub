@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { AlertDialog, Button, Modal, Spinner, useOverlayState } from "@heroui/react";
+import { useRef, useState } from "react";
+import { AlertDialog, Button, Spinner } from "@heroui/react";
 import { Plus } from "@gravity-ui/icons";
 import { type Share, useDeleteShare, useShares } from "../../api/share";
 import { PageLayout } from "../PageLayout";
@@ -9,26 +9,18 @@ import { ShareItem } from "./ShareItem";
 export default function SharePage() {
     const { data: shares, isLoading } = useShares();
     const deleteShare = useDeleteShare();
-    const editorState = useOverlayState();
-    const [editing, setEditing] = useState<Share | null>(null); // 当前正在编辑的分享，空值表示新建。
-    const [editorKey, setEditorKey] = useState(0); // 每次打开时重建表单，避免保留上次输入。
+    const modalRef = useRef<(share?: Share) => void>(null); // 打开分享编辑弹窗的方法。
     const [deletingId, setDeletingId] = useState<string | null>(null); // 等待确认删除的分享 ID。
 
     if (isLoading) {
         return <PageLayout title="分享"><div className="flex min-h-[28rem] items-center justify-center"><Spinner size="sm" /></div></PageLayout>;
     }
 
-    const openEditor = (share?: Share) => {
-        setEditing(share ?? null);
-        setEditorKey((key) => key + 1);
-        editorState.open();
-    };
-
     return (
         <PageLayout
             title="分享"
             actions={
-                <Button isIconOnly variant="ghost" onPress={() => openEditor()} className="rounded-xl">
+                <Button isIconOnly variant="ghost" onPress={() => modalRef.current?.()} className="rounded-xl">
                     <Plus className="size-4 text-foreground/50" />
                 </Button>
             }
@@ -42,36 +34,14 @@ export default function SharePage() {
                             <ShareItem
                                 key={share.id}
                                 share={share}
-                                onEdit={openEditor}
+                                onEdit={(item) => modalRef.current?.(item)}
                                 onDelete={(item) => setDeletingId(item.id)}
                             />
                         ))}
                     </div>
                 )}
 
-                <Modal state={editorState} data-scrollbar="none">
-                    <Modal.Backdrop variant="blur">
-                        <Modal.Container>
-                            <Modal.Dialog>
-                                <Modal.CloseTrigger />
-                                <Modal.Header>
-                                    <Modal.Heading>{editing ? "编辑分享" : "添加分享"}</Modal.Heading>
-                                </Modal.Header>
-                                <Modal.Body>
-                                    <ShareForm
-                                        key={`${editing?.id ?? "create"}-${editorKey}`}
-                                        share={editing ?? undefined}
-                                        onClose={editorState.close}
-                                    />
-                                </Modal.Body>
-                                <Modal.Footer>
-                                    <Button variant="ghost" slot="close">取消</Button>
-                                    <Button type="submit" form="share-form" variant="primary">{editing ? "保存" : "添加"}</Button>
-                                </Modal.Footer>
-                            </Modal.Dialog>
-                        </Modal.Container>
-                    </Modal.Backdrop>
-                </Modal>
+                <ShareForm ref={modalRef} />
 
                 <AlertDialog.Backdrop isOpen={!!deletingId} onOpenChange={(open) => { if (!open) setDeletingId(null); }} variant="blur">
                     <AlertDialog.Container size="xs">

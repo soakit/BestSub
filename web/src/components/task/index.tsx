@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { AlertDialog, Button, Modal, Spinner, useOverlayState } from "@heroui/react";
+import { useRef, useState } from "react";
+import { AlertDialog, Button, Spinner } from "@heroui/react";
 import { PageLayout } from "../PageLayout";
 import { Plus } from "@gravity-ui/icons";
 import { type Task, useDeleteTask, useTasks } from "../../api/task";
@@ -9,9 +9,7 @@ import { TaskItem } from "./TaskItem";
 export default function TaskPage() {
     const { data: tasks, isLoading } = useTasks();
     const deleteTask = useDeleteTask();
-    const editorState = useOverlayState();
-    const [editing, setEditing] = useState<Task | null>(null);
-    const [editorKey, setEditorKey] = useState(0);
+    const modalRef = useRef<(task?: Task) => void>(null); // 打开任务编辑弹窗的方法。
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
     if (isLoading) {
@@ -22,7 +20,7 @@ export default function TaskPage() {
         <PageLayout
             title="任务"
             actions={
-                <Button isIconOnly variant="ghost" onPress={() => { setEditing(null); setEditorKey((n) => n + 1); editorState.open(); }} className="rounded-xl">
+                <Button isIconOnly variant="ghost" onPress={() => modalRef.current?.()} className="rounded-xl">
                     <Plus className="size-4 text-foreground/50" />
                 </Button>
             }
@@ -36,37 +34,14 @@ export default function TaskPage() {
                             <TaskItem
                                 key={task.id}
                                 task={task}
-                                onEdit={(t) => { setEditing(t); setEditorKey((n) => n + 1); editorState.open(); }}
+                                onEdit={(item) => modalRef.current?.(item)}
                                 onDelete={(t) => setDeletingId(t.id)}
                             />
                         ))}
                     </div>
                 )}
 
-                <Modal state={editorState} data-scrollbar="none">
-                    <Modal.Backdrop variant="blur">
-                        <Modal.Container>
-                            <Modal.Dialog>
-                                <Modal.CloseTrigger />
-                                <Modal.Header>
-                                    <Modal.Heading>{editing ? "编辑任务" : "添加任务"}</Modal.Heading>
-                                </Modal.Header>
-                                <Modal.Body>
-                                    <TaskForm
-                                        key={`${editing?.id ?? "create"}-${editorKey}`}
-                                        task={editing ?? undefined}
-                                        tasks={tasks ?? []}
-                                        onClose={editorState.close}
-                                    />
-                                </Modal.Body>
-                                <Modal.Footer>
-                                    <Button variant="ghost" slot="close">取消</Button>
-                                    <Button type="submit" form="task-form" variant="primary">{editing ? "保存" : "添加"}</Button>
-                                </Modal.Footer>
-                            </Modal.Dialog>
-                        </Modal.Container>
-                    </Modal.Backdrop>
-                </Modal>
+                <TaskForm ref={modalRef} tasks={tasks ?? []} />
 
                 <AlertDialog.Backdrop isOpen={!!deletingId} onOpenChange={(open) => { if (!open) setDeletingId(null) }} variant="blur">
                     <AlertDialog.Container size="xs">

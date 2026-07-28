@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useState } from "react";
 import type { Key } from "@heroui/react";
-import { Autocomplete, Button, Disclosure, Drawer, Dropdown, EmptyState, Form, Input, Label, ListBox, SearchField, Select, Switch, Tag, TagGroup, TextArea, TextField, useFilter } from "@heroui/react";
+import { Autocomplete, Button, Disclosure, Drawer, Dropdown, EmptyState, Form, Input, Label, ListBox, Modal, SearchField, Select, Switch, Tag, TagGroup, TextArea, TextField, useFilter, useOverlayState } from "@heroui/react";
 import { FileArrowDown, Pencil, Plus, TrashBin } from "@gravity-ui/icons";
 import { useNodes } from "../../api/node";
 import { useRenamePreview, useRenameTemplates } from "../../api/rename";
@@ -76,7 +76,10 @@ function initialSourceRows(task?: Task): TaskSourceType[] {
     return rows.length > 0 ? rows : ["subscription"];
 }
 
-export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[]; onClose: () => void }) {
+// 管理任务表单状态并在不重渲染任务列表的情况下打开编辑弹窗。
+export function TaskForm({ ref, tasks }: { ref?: React.Ref<(task?: Task) => void>; tasks: Task[] }) {
+    const state = useOverlayState();
+    const [editing, setEditing] = useState<Task | null>(null); // 当前正在编辑的任务，空值表示新建。
     const { contains } = useFilter({ sensitivity: "base" });
     const { data: subscriptions = [] } = useSubscription();
     const { data: nodes = [] } = useNodes();
@@ -87,23 +90,27 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
     const createTask = useCreateTask();
     const updateTask = useUpdateTask();
     const [editingStep, setEditingStep] = useState<number | null>(null);
-    const [formState, setFormState] = useState<TaskConfig>(
-        task
-            ? {
-                ...defaultConfig,
-                ...task,
-                steps: task.steps.map((step) => ({
-                    ...step,
-                    params: step.type === "country"
-                        ? { timeout_ms: step.params?.timeout_ms }
-                        : { ...defaultStepParams(step.type), ...(step.params ?? {}) },
-                })),
-            }
-            : { ...defaultConfig, steps: [newStep()] }
-    );
-    const [sourceRows, setSourceRows] = useState<TaskSourceType[]>(() => initialSourceRows(task));
-    const resultTasks = useMemo(() => tasks.filter((t) => t.id !== task?.id), [tasks, task?.id]);
+    const [formState, setFormState] = useState<TaskConfig>({ ...defaultConfig, steps: [newStep()] });
+    const [sourceRows, setSourceRows] = useState<TaskSourceType[]>(["subscription"]);
+    const resultTasks = useMemo(() => tasks.filter((task) => task.id !== editing?.id), [tasks, editing?.id]);
     const allInputEnabled = formState.all_input_enable === 1; // 是否在本次编辑中动态使用全部订阅和单独节点。
+
+    useImperativeHandle(ref, () => (task?: Task) => {
+        setEditing(task ?? null);
+        setFormState(task ? {
+            ...defaultConfig,
+            ...task,
+            steps: task.steps.map((step) => ({
+                ...step,
+                params: step.type === "country"
+                    ? { timeout_ms: step.params?.timeout_ms }
+                    : { ...defaultStepParams(step.type), ...(step.params ?? {}) },
+            })),
+        } : { ...defaultConfig, steps: [newStep()] });
+        setSourceRows(initialSourceRows(task));
+        setEditingStep(null);
+        state.open();
+    });
 
     useEffect(() => {
         // 输入变化时清掉旧结果并延迟请求，避免把过期预览显示为当前表达式。
@@ -188,227 +195,245 @@ export function TaskForm({ task, tasks, onClose }: { task?: Task; tasks: Task[];
             node_rename_expression: formState.storage_enable === 1 ? formState.node_rename_expression.trim() : "",
         };
         if (payload.steps.length === 0) return;
-        if (task) {
-            updateTask.mutate({ ...payload, id: task.id }, { onSuccess: onClose });
+        if (editing) {
+            updateTask.mutate({ ...payload, id: editing.id }, { onSuccess: state.close });
         } else {
-            createTask.mutate(payload, { onSuccess: onClose });
+            createTask.mutate(payload, { onSuccess: state.close });
         }
     };
 
     return (
-        <Form id="task-form" className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
-            <TextField isRequired name="name" value={formState.name} onChange={(value) => setForm("name", value)}>
-                <Label>任务名称</Label>
-                <Input placeholder="我的任务" variant="secondary" />
-            </TextField>
+        <Modal state={state}>
+            <Modal.Backdrop variant="blur">
+                <Modal.Container>
+                    <Modal.Dialog>
+                        <Modal.CloseTrigger />
+                        <Modal.Header>
+                            <Modal.Heading>{editing ? "编辑任务" : "添加任务"}</Modal.Heading>
+                        </Modal.Header>
+                        <Modal.Body>
+                            <Form id="task-form" className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
+                                <TextField isRequired name="name" value={formState.name} onChange={(value) => setForm("name", value)}>
+                                    <Label>任务名称</Label>
+                                    <Input placeholder="我的任务" variant="secondary" />
+                                </TextField>
 
-            <Disclosure className="w-full" isExpanded={formState.auto_run === 1}>
-                <Disclosure.Heading className="flex items-center">
-                    <span className="text-sm font-medium text-foreground">自动运行</span>
-                    <div className="flex-1" />
-                    <Switch isSelected={formState.auto_run === 1} onChange={() => setForm("auto_run", formState.auto_run === 1 ? 0 : 1)}>
-                        <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
-                    </Switch>
-                </Disclosure.Heading>
-                <Disclosure.Content className="!overflow-visible">
-                    <TextField value={formState.cron_expr} onChange={(value) => setForm("cron_expr", value)} className="pt-2">
-                        <Label>Cron 表达式</Label>
-                        <Input name="cron_expr" placeholder="0 */6 * * *" variant="secondary" />
-                    </TextField>
-                </Disclosure.Content>
-            </Disclosure>
+                                <Disclosure className="w-full" isExpanded={formState.auto_run === 1}>
+                                    <Disclosure.Heading className="flex items-center">
+                                        <span className="text-sm font-medium text-foreground">自动运行</span>
+                                        <div className="flex-1" />
+                                        <Switch isSelected={formState.auto_run === 1} onChange={() => setForm("auto_run", formState.auto_run === 1 ? 0 : 1)}>
+                                            <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
+                                        </Switch>
+                                    </Disclosure.Heading>
+                                    <Disclosure.Content className="!overflow-visible">
+                                        <TextField value={formState.cron_expr} onChange={(value) => setForm("cron_expr", value)} className="pt-2">
+                                            <Label>Cron 表达式</Label>
+                                            <Input name="cron_expr" placeholder="0 */6 * * *" variant="secondary" />
+                                        </TextField>
+                                    </Disclosure.Content>
+                                </Disclosure>
 
-            <div className="flex flex-col gap-3">
-                <div className="flex items-center">
-                    <span className="text-sm font-medium text-foreground">前置节点来源</span>
-                    <div className="flex-1" />
-                    <Switch isSelected={allInputEnabled} onChange={(selected) => setForm("all_input_enable", selected ? 1 : 0)}>
-                        <Switch.Content>
-                            全部输入
-                            <Switch.Control><Switch.Thumb /></Switch.Control>
-                        </Switch.Content>
-                    </Switch>
-                </div>
-                {sourceRows.filter((type) => !allInputEnabled || type === "result_task").map((type, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[6rem_minmax(0,1fr)] sm:items-center">
-                            <Select className="w-full" aria-label="来源类型" variant="secondary" value={type} onChange={(key) => {
-                                const next = String(key) as TaskSourceType;
-                                if (next === type) return;
-                                clearSourceValue(type);
-                                setSourceRows((rows) => rows.map((row, i) => (i === index ? next : row)));
-                            }}>
-                                <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
-                                <Select.Popover>
-                                    <ListBox>
-                                        {taskSourceTypes.filter((source) =>
-                                            (!allInputEnabled || source.id === "result_task") &&
-                                            (source.id === type || !sourceRows.includes(source.id))
-                                        ).map((source) => (
-                                            <ListBox.Item key={source.id} id={source.id}>{source.name}</ListBox.Item>
-                                        ))}
-                                    </ListBox>
-                                </Select.Popover>
-                            </Select>
-                            <TaskSourcePicker ariaLabel="选择来源" placeholder={`选择${taskSourceTypes.find((source) => source.id === type)!.name}`} value={getSourceValue(type)} options={getSourceOptions(type)} onChange={(ids) => setSourceValue(type, ids)} />
-                        </div>
-                        <Button isIconOnly size="sm" variant="ghost" className="text-muted hover:text-danger" onPress={() => {
-                            clearSourceValue(type);
-                            setSourceRows((rows) => rows.filter((_, i) => i !== index));
-                        }}>
-                            <TrashBin className="size-4" />
-                        </Button>
-                    </div>
-                ))}
-                <Button variant="ghost" className="w-full" isDisabled={allInputEnabled ? sourceRows.includes("result_task") : sourceRows.length >= taskSourceTypes.length} onPress={() => setSourceRows((rows) => [
-                    ...rows,
-                    allInputEnabled ? "result_task" : taskSourceTypes.find((source) => !rows.includes(source.id))!.id,
-                ])}>
-                    <Plus className="size-4" />
-                    添加来源
-                </Button>
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex items-center">
+                                        <span className="text-sm font-medium text-foreground">前置节点来源</span>
+                                        <div className="flex-1" />
+                                        <Switch isSelected={allInputEnabled} onChange={(selected) => setForm("all_input_enable", selected ? 1 : 0)}>
+                                            <Switch.Content>
+                                                全部输入
+                                                <Switch.Control><Switch.Thumb /></Switch.Control>
+                                            </Switch.Content>
+                                        </Switch>
+                                    </div>
+                                    {sourceRows.filter((type) => !allInputEnabled || type === "result_task").map((type, index) => (
+                                        <div key={index} className="flex items-center gap-2">
+                                            <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[6rem_minmax(0,1fr)] sm:items-center">
+                                                <Select className="w-full" aria-label="来源类型" variant="secondary" value={type} onChange={(key) => {
+                                                    const next = String(key) as TaskSourceType;
+                                                    if (next === type) return;
+                                                    clearSourceValue(type);
+                                                    setSourceRows((rows) => rows.map((row, i) => (i === index ? next : row)));
+                                                }}>
+                                                    <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+                                                    <Select.Popover>
+                                                        <ListBox>
+                                                            {taskSourceTypes.filter((source) =>
+                                                                (!allInputEnabled || source.id === "result_task") &&
+                                                                (source.id === type || !sourceRows.includes(source.id))
+                                                            ).map((source) => (
+                                                                <ListBox.Item key={source.id} id={source.id}>{source.name}</ListBox.Item>
+                                                            ))}
+                                                        </ListBox>
+                                                    </Select.Popover>
+                                                </Select>
+                                                <TaskSourcePicker ariaLabel="选择来源" placeholder={`选择${taskSourceTypes.find((source) => source.id === type)!.name}`} value={getSourceValue(type)} options={getSourceOptions(type)} onChange={(ids) => setSourceValue(type, ids)} />
+                                            </div>
+                                            <Button isIconOnly size="sm" variant="ghost" className="text-muted hover:text-danger" onPress={() => {
+                                                clearSourceValue(type);
+                                                setSourceRows((rows) => rows.filter((_, i) => i !== index));
+                                            }}>
+                                                <TrashBin className="size-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                    <Button variant="ghost" className="w-full" isDisabled={allInputEnabled ? sourceRows.includes("result_task") : sourceRows.length >= taskSourceTypes.length} onPress={() => setSourceRows((rows) => [
+                                        ...rows,
+                                        allInputEnabled ? "result_task" : taskSourceTypes.find((source) => !rows.includes(source.id))!.id,
+                                    ])}>
+                                        <Plus className="size-4" />
+                                        添加来源
+                                    </Button>
 
-                <Disclosure className="w-full" isExpanded={formState.custom_landing_node_enable === 1}>
-                    <Disclosure.Heading className="flex items-center">
-                        <span className="text-sm font-medium text-foreground">自定义落地节点</span>
-                        <div className="flex-1" />
-                        <Switch isSelected={formState.custom_landing_node_enable === 1} onChange={() => setForm("custom_landing_node_enable", formState.custom_landing_node_enable === 1 ? 0 : 1)}>
-                            <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
-                        </Switch>
-                    </Disclosure.Heading>
-                    <Disclosure.Content className="pt-2 !overflow-visible">
-                        <Autocomplete isRequired={formState.custom_landing_node_enable === 1} className="w-full" placeholder="选择节点" selectionMode="single" value={formState.landing_node.id || null} variant="secondary" onChange={(key) => setForm("landing_node", { id: typeof key === "string" ? key : "" })}>
-                            <Label>落地节点</Label>
-                            <Autocomplete.Trigger>
-                                <Autocomplete.Value />
-                                <Autocomplete.ClearButton />
-                                <Autocomplete.Indicator />
-                            </Autocomplete.Trigger>
-                            <Autocomplete.Popover>
-                                <Autocomplete.Filter filter={contains}>
-                                    <SearchField autoFocus name="landing-node-search" variant="secondary">
-                                        <SearchField.Group>
-                                            <SearchField.SearchIcon />
-                                            <SearchField.Input placeholder="搜索节点" />
-                                            <SearchField.ClearButton />
-                                        </SearchField.Group>
-                                    </SearchField>
-                                    <ListBox renderEmptyState={() => <EmptyState>没有可用节点</EmptyState>}>
-                                        {nodes.map((node) => (
-                                            <ListBox.Item key={node.id} id={node.id} textValue={node.name || node.id}>{node.name || node.id}<ListBox.ItemIndicator /></ListBox.Item>
-                                        ))}
-                                    </ListBox>
-                                </Autocomplete.Filter>
-                            </Autocomplete.Popover>
-                        </Autocomplete>
-                    </Disclosure.Content>
-                </Disclosure>
-            </div>
+                                    <Disclosure className="w-full" isExpanded={formState.custom_landing_node_enable === 1}>
+                                        <Disclosure.Heading className="flex items-center">
+                                            <span className="text-sm font-medium text-foreground">自定义落地节点</span>
+                                            <div className="flex-1" />
+                                            <Switch isSelected={formState.custom_landing_node_enable === 1} onChange={() => setForm("custom_landing_node_enable", formState.custom_landing_node_enable === 1 ? 0 : 1)}>
+                                                <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
+                                            </Switch>
+                                        </Disclosure.Heading>
+                                        <Disclosure.Content className="pt-2 !overflow-visible">
+                                            <Autocomplete isRequired={formState.custom_landing_node_enable === 1} className="w-full" placeholder="选择节点" selectionMode="single" value={formState.landing_node.id || null} variant="secondary" onChange={(key) => setForm("landing_node", { id: typeof key === "string" ? key : "" })}>
+                                                <Label>落地节点</Label>
+                                                <Autocomplete.Trigger>
+                                                    <Autocomplete.Value />
+                                                    <Autocomplete.ClearButton />
+                                                    <Autocomplete.Indicator />
+                                                </Autocomplete.Trigger>
+                                                <Autocomplete.Popover>
+                                                    <Autocomplete.Filter filter={contains}>
+                                                        <SearchField autoFocus name="landing-node-search" variant="secondary">
+                                                            <SearchField.Group>
+                                                                <SearchField.SearchIcon />
+                                                                <SearchField.Input placeholder="搜索节点" />
+                                                                <SearchField.ClearButton />
+                                                            </SearchField.Group>
+                                                        </SearchField>
+                                                        <ListBox renderEmptyState={() => <EmptyState>没有可用节点</EmptyState>}>
+                                                            {nodes.map((node) => (
+                                                                <ListBox.Item key={node.id} id={node.id} textValue={node.name || node.id}>{node.name || node.id}<ListBox.ItemIndicator /></ListBox.Item>
+                                                            ))}
+                                                        </ListBox>
+                                                    </Autocomplete.Filter>
+                                                </Autocomplete.Popover>
+                                            </Autocomplete>
+                                        </Disclosure.Content>
+                                    </Disclosure>
+                                </div>
 
-            <div className="flex flex-col gap-3">
-                <span className="text-sm font-medium text-foreground">检测步骤</span>
-                {formState.steps.map((step, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                        <div className="min-w-0 flex-1 rounded-xl bg-surface-secondary p-3">
-                            <div className="text-sm text-foreground">{index + 1}. {stepName(step)}</div>
-                        </div>
-                        <Button isIconOnly size="sm" variant="ghost" className="text-muted hover:text-accent" onPress={() => setEditingStep(index)}>
-                            <Pencil className="size-4" />
-                        </Button>
-                        <Button isIconOnly size="sm" variant="ghost" className="text-muted hover:text-danger" onPress={() => setForm("steps", formState.steps.filter((_, i) => i !== index))}>
-                            <TrashBin className="size-4" />
-                        </Button>
-                    </div>
-                ))}
-                <Button variant="ghost" className="w-full" onPress={() => {
-                    setForm("steps", [...formState.steps, newStep()]);
-                    setEditingStep(formState.steps.length);
-                }}>
-                    <Plus className="size-4" />
-                    添加步骤
-                </Button>
-            </div>
-
-            <Disclosure className="w-full" isExpanded={formState.storage_enable === 1}>
-                <Disclosure.Heading className="flex items-center">
-                    <span className="text-sm font-medium text-foreground">完成后储存</span>
-                    <div className="flex-1" />
-                    <Switch isSelected={formState.storage_enable === 1} onChange={() => setForm("storage_enable", formState.storage_enable === 1 ? 0 : 1)}>
-                        <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
-                    </Switch>
-                </Disclosure.Heading>
-                <Disclosure.Content className="flex flex-col gap-4 pt-2 !overflow-visible">
-                    <Select className="w-full" variant="secondary" value={formState.storage_id} onChange={(key) => setForm("storage_id", String(key))}>
-                        <Label>储存目标</Label>
-                        <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
-                        <Select.Popover>
-                            <ListBox>
-                                {storages.map((storage) => (
-                                    <ListBox.Item key={storage.id} id={storage.id} textValue={storage.name}>{storage.name}</ListBox.Item>
-                                ))}
-                            </ListBox>
-                        </Select.Popover>
-                    </Select>
-                    <Select className="w-full" variant="secondary" value={formState.save_format} onChange={(key) => setForm("save_format", String(key) as TaskSaveFormat)}>
-                        <Label>保存格式</Label>
-                        <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
-                        <Select.Popover>
-                            <ListBox>
-                                {taskSaveFormats.map((format) => (
-                                    <ListBox.Item key={format} id={format} textValue={format}>{format}</ListBox.Item>
-                                ))}
-                            </ListBox>
-                        </Select.Popover>
-                    </Select>
-                    <TextField value={formState.node_rename_expression} onChange={(value) => setForm("node_rename_expression", value)}>
-                        <div className="flex items-center gap-2">
-                            <Label className="flex-1">重命名表达式</Label>
-                            <Dropdown>
-                                <Button isIconOnly type="button" size="sm" variant="ghost" isDisabled={renameTemplates.length === 0}>
-                                    <FileArrowDown className="size-4" />
-                                </Button>
-                                <Dropdown.Popover className="min-w-64">
-                                    <Dropdown.Menu onAction={(key) => {
-                                        const template = renameTemplates.find((template) => template.id === Number(key));
-                                        if (template) setForm("node_rename_expression", template.expression);
+                                <div className="flex flex-col gap-3">
+                                    <span className="text-sm font-medium text-foreground">检测步骤</span>
+                                    {formState.steps.map((step, index) => (
+                                        <div key={index} className="flex items-center gap-2">
+                                            <div className="min-w-0 flex-1 rounded-xl bg-surface-secondary p-3">
+                                                <div className="text-sm text-foreground">{index + 1}. {stepName(step)}</div>
+                                            </div>
+                                            <Button isIconOnly size="sm" variant="ghost" className="text-muted hover:text-accent" onPress={() => setEditingStep(index)}>
+                                                <Pencil className="size-4" />
+                                            </Button>
+                                            <Button isIconOnly size="sm" variant="ghost" className="text-muted hover:text-danger" onPress={() => setForm("steps", formState.steps.filter((_, i) => i !== index))}>
+                                                <TrashBin className="size-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                    <Button variant="ghost" className="w-full" onPress={() => {
+                                        setForm("steps", [...formState.steps, newStep()]);
+                                        setEditingStep(formState.steps.length);
                                     }}>
-                                        {[...renameTemplates].sort((a, b) => b.id - a.id).map((template) => (
-                                            <Dropdown.Item key={template.id} id={String(template.id)} textValue={template.preview}>
-                                                <Label>{template.preview}</Label>
-                                            </Dropdown.Item>
-                                        ))}
-                                    </Dropdown.Menu>
-                                </Dropdown.Popover>
-                            </Dropdown>
-                        </div>
-                        <TextArea rows={2} name="node_rename_expression" placeholder="{{.Country.NameZh}}-{{.Index}}" variant="secondary" />                        <span className={`text-xs ${renamePreview.isError ? "text-danger" : "text-muted"}`}>
-                            预览：{renamePreview.isError ? renamePreview.error.message : renamePreview.data?.result}
-                        </span>
-                    </TextField>
-                    <TextField value={formState.save_path} onChange={(value) => setForm("save_path", value)}>
-                        <Label>保存路径</Label>
-                        <Input name="save_path" placeholder="/nodes.yaml" variant="secondary" />
-                    </TextField>
-                </Disclosure.Content>
-            </Disclosure>
+                                        <Plus className="size-4" />
+                                        添加步骤
+                                    </Button>
+                                </div>
 
-            <Drawer.Backdrop isOpen={editingStep !== null} onOpenChange={(open) => { if (!open) setEditingStep(null); }} variant="blur">
-                <Drawer.Content placement="right">
-                    <Drawer.Dialog>
-                        <Drawer.CloseTrigger />
-                        <Drawer.Header><Drawer.Heading>编辑检测步骤</Drawer.Heading></Drawer.Header>
-                        <Drawer.Body>
-                            {editingStep !== null && formState.steps[editingStep] && (
-                                <TaskStepFields step={formState.steps[editingStep]} onChange={(step) => setStep(editingStep, step)} />
-                            )}
-                        </Drawer.Body>
-                        <Drawer.Footer>
-                            <Button variant="ghost" onPress={() => setEditingStep(null)}>完成</Button>
-                        </Drawer.Footer>
-                    </Drawer.Dialog>
-                </Drawer.Content>
-            </Drawer.Backdrop>
-        </Form>
+                                <Disclosure className="w-full" isExpanded={formState.storage_enable === 1}>
+                                    <Disclosure.Heading className="flex items-center">
+                                        <span className="text-sm font-medium text-foreground">完成后储存</span>
+                                        <div className="flex-1" />
+                                        <Switch isSelected={formState.storage_enable === 1} onChange={() => setForm("storage_enable", formState.storage_enable === 1 ? 0 : 1)}>
+                                            <Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content>
+                                        </Switch>
+                                    </Disclosure.Heading>
+                                    <Disclosure.Content className="flex flex-col gap-4 pt-2 !overflow-visible">
+                                        <Select className="w-full" variant="secondary" value={formState.storage_id} onChange={(key) => setForm("storage_id", String(key))}>
+                                                    <Label>储存目标</Label>
+                                                    <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+                                                    <Select.Popover>
+                                                        <ListBox>
+                                                            {storages.map((storage) => (
+                                                                <ListBox.Item key={storage.id} id={storage.id} textValue={storage.name}>{storage.name}</ListBox.Item>
+                                                            ))}
+                                                        </ListBox>
+                                                    </Select.Popover>
+                                                </Select>
+                                                <Select className="w-full" variant="secondary" value={formState.save_format} onChange={(key) => setForm("save_format", String(key) as TaskSaveFormat)}>
+                                                    <Label>保存格式</Label>
+                                                    <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+                                                    <Select.Popover>
+                                                        <ListBox>
+                                                            {taskSaveFormats.map((format) => (
+                                                                <ListBox.Item key={format} id={format} textValue={format}>{format}</ListBox.Item>
+                                                            ))}
+                                                        </ListBox>
+                                                    </Select.Popover>
+                                                </Select>
+                                                <TextField value={formState.node_rename_expression} onChange={(value) => setForm("node_rename_expression", value)}>
+                                                    <div className="flex items-center gap-2">
+                                                        <Label className="flex-1">重命名表达式</Label>
+                                                        <Dropdown>
+                                                            <Button isIconOnly type="button" size="sm" variant="ghost" isDisabled={renameTemplates.length === 0}>
+                                                                <FileArrowDown className="size-4" />
+                                                            </Button>
+                                                            <Dropdown.Popover className="min-w-64">
+                                                                <Dropdown.Menu onAction={(key) => {
+                                                                    const template = renameTemplates.find((template) => template.id === Number(key));
+                                                                    if (template) setForm("node_rename_expression", template.expression);
+                                                                }}>
+                                                                    {[...renameTemplates].sort((a, b) => b.id - a.id).map((template) => (
+                                                                        <Dropdown.Item key={template.id} id={String(template.id)} textValue={template.preview}>
+                                                                            <Label>{template.preview}</Label>
+                                                                        </Dropdown.Item>
+                                                                    ))}
+                                                                </Dropdown.Menu>
+                                                            </Dropdown.Popover>
+                                                        </Dropdown>
+                                                    </div>
+                                                    <TextArea rows={2} name="node_rename_expression" placeholder="{{.Country.NameZh}}-{{.Index}}" variant="secondary" />                        <span className={`text-xs ${renamePreview.isError ? "text-danger" : "text-muted"}`}>
+                                                        预览：{renamePreview.isError ? renamePreview.error.message : renamePreview.data?.result}
+                                                    </span>
+                                                </TextField>
+                                        <TextField value={formState.save_path} onChange={(value) => setForm("save_path", value)}>
+                                            <Label>保存路径</Label>
+                                            <Input name="save_path" placeholder="/nodes.yaml" variant="secondary" />
+                                        </TextField>
+                                    </Disclosure.Content>
+                                </Disclosure>
+
+                                <Drawer.Backdrop isOpen={editingStep !== null} onOpenChange={(open) => { if (!open) setEditingStep(null); }} variant="blur">
+                                    <Drawer.Content placement="right">
+                                        <Drawer.Dialog>
+                                            <Drawer.CloseTrigger />
+                                            <Drawer.Header><Drawer.Heading>编辑检测步骤</Drawer.Heading></Drawer.Header>
+                                            <Drawer.Body>
+                                                {editingStep !== null && formState.steps[editingStep] && (
+                                                    <TaskStepFields step={formState.steps[editingStep]} onChange={(step) => setStep(editingStep, step)} />
+                                                )}
+                                            </Drawer.Body>
+                                            <Drawer.Footer>
+                                                <Button variant="ghost" onPress={() => setEditingStep(null)}>完成</Button>
+                                            </Drawer.Footer>
+                                        </Drawer.Dialog>
+                                    </Drawer.Content>
+                                </Drawer.Backdrop>
+                            </Form>
+                        </Modal.Body>
+                        <Modal.Footer>
+                            <Button variant="ghost" slot="close">取消</Button>
+                            <Button type="submit" form="task-form" variant="primary">{editing ? "保存" : "添加"}</Button>
+                        </Modal.Footer>
+                    </Modal.Dialog>
+                </Modal.Container>
+            </Modal.Backdrop>
+        </Modal>
     );
 }
 

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useState } from "react";
 import type { Key } from "@heroui/react";
-import { Autocomplete, Button, Disclosure, Dropdown, EmptyState, Form, Input, Label, ListBox, ListLayout, SearchField, Select, Tag, TagGroup, TextArea, TextField, Virtualizer, useFilter } from "@heroui/react";
+import { Autocomplete, Button, Disclosure, Dropdown, EmptyState, Form, Input, Label, ListBox, ListLayout, Modal, SearchField, Select, Tag, TagGroup, TextArea, TextField, Virtualizer, useFilter, useOverlayState } from "@heroui/react";
 import { FileArrowDown, Plus, TrashBin } from "@gravity-ui/icons";
 import { useNodes } from "../../api/node";
 import { useRenamePreview, useRenameTemplates } from "../../api/rename";
@@ -45,7 +45,10 @@ function initialSourceRows(share?: Share): ShareSourceType[] {
     return rows.length > 0 ? rows : ["subscription"];
 }
 
-export function ShareForm({ share, onClose }: { share?: Share; onClose: () => void }) {
+// 管理分享表单状态并在不重渲染分享列表的情况下打开编辑弹窗。
+export function ShareForm({ ref }: { ref?: React.Ref<(share?: Share) => void> }) {
+    const state = useOverlayState();
+    const [editing, setEditing] = useState<Share | null>(null); // 当前正在编辑的分享，空值表示新建。
     const { data: subscriptions = [] } = useSubscription();
     const { data: nodes = [] } = useNodes();
     const { data: tags = [] } = useTags();
@@ -54,8 +57,12 @@ export function ShareForm({ share, onClose }: { share?: Share; onClose: () => vo
     const renamePreview = useRenamePreview();
     const createShare = useCreateShare();
     const updateShare = useUpdateShare();
-    const [formState, setFormState] = useState<ShareConfig>(() => // 当前弹窗内可提交的分享配置，仅保留后端允许编辑的字段。
-        share ? {
+    const [formState, setFormState] = useState<ShareConfig>({ ...defaultConfig, filter: {} }); // 当前弹窗内可提交的分享配置。
+    const [sourceRows, setSourceRows] = useState<ShareSourceType[]>(["subscription"]); // 当前显示的来源选择行。
+
+    useImperativeHandle(ref, () => (share?: Share) => {
+        setEditing(share ?? null);
+        setFormState(share ? {
             name: share.name,
             node_rename_expression: share.node_rename_expression,
             filter: {
@@ -70,9 +77,10 @@ export function ShareForm({ share, onClose }: { share?: Share; onClose: () => vo
             nodes: share.nodes.map(({ id }) => ({ id })),
             tags: share.tags.map(({ id }) => ({ id })),
             result_tasks: share.result_tasks.map(({ id }) => ({ id })),
-        } : { ...defaultConfig, filter: {} }
-    );
-    const [sourceRows, setSourceRows] = useState<ShareSourceType[]>(() => initialSourceRows(share)); // 当前显示的来源选择行。
+        } : { ...defaultConfig, filter: {} });
+        setSourceRows(initialSourceRows(share));
+        state.open();
+    });
 
     useEffect(() => {
         renamePreview.reset();
@@ -147,107 +155,125 @@ export function ShareForm({ share, onClose }: { share?: Share; onClose: () => vo
             result_tasks: formState.result_tasks.map(({ id }) => ({ id })),
         };
         if (!payload.name || payload.subscriptions.length + payload.nodes.length + payload.tags.length + payload.result_tasks.length === 0) return;
-        if (share) {
-            updateShare.mutate({ ...payload, id: share.id }, { onSuccess: onClose });
+        if (editing) {
+            updateShare.mutate({ ...payload, id: editing.id }, { onSuccess: state.close });
         } else {
-            createShare.mutate(payload, { onSuccess: onClose });
+            createShare.mutate(payload, { onSuccess: state.close });
         }
     };
 
     return (
-        <Form id="share-form" validationBehavior="native" className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
-            <TextField isRequired value={formState.name} onChange={(value) => setForm("name", value)}>
-                <Label>分享名称</Label>
-                <Input name="name" placeholder="我的分享" variant="secondary" />
-            </TextField>
+        <Modal state={state}>
+            <Modal.Backdrop variant="blur">
+                <Modal.Container>
+                    <Modal.Dialog>
+                        <Modal.CloseTrigger />
+                        <Modal.Header>
+                            <Modal.Heading>{editing ? "编辑分享" : "添加分享"}</Modal.Heading>
+                        </Modal.Header>
+                        <Modal.Body>
+                            <Form id="share-form" validationBehavior="native" className="flex w-full flex-col gap-4" onSubmit={handleSubmit}>
+                                <TextField isRequired value={formState.name} onChange={(value) => setForm("name", value)}>
+                                    <Label>分享名称</Label>
+                                    <Input name="name" placeholder="我的分享" variant="secondary" />
+                                </TextField>
 
-            <div className="flex flex-col gap-3">
-                <span className="text-sm font-medium text-foreground">节点来源</span>
-                {sourceRows.map((type, index) => (
-                    <div key={type} className="flex items-center gap-2">
-                        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[6rem_minmax(0,1fr)] sm:items-center">
-                            <Select className="w-full" aria-label="来源类型" variant="secondary" value={type} onChange={(key) => {
-                                const next = String(key) as ShareSourceType;
-                                if (next === type) return;
-                                clearSourceValue(type);
-                                setSourceRows((rows) => rows.map((row, i) => (i === index ? next : row)));
-                            }}>
-                                <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
-                                <Select.Popover>
-                                    <ListBox>
-                                        {shareSourceTypes.filter((source) => source.id === type || !sourceRows.includes(source.id)).map((source) => (
-                                            <ListBox.Item key={source.id} id={source.id}>{source.name}</ListBox.Item>
-                                        ))}
-                                    </ListBox>
-                                </Select.Popover>
-                            </Select>
-                            <SourcePicker
-                                placeholder={`选择${shareSourceTypes.find((source) => source.id === type)!.name}`}
-                                value={getSourceValue(type)}
-                                options={getSourceOptions(type)}
-                                onChange={(ids) => setSourceValue(type, ids)}
-                            />
-                        </div>
-                        <Button isIconOnly size="sm" variant="ghost" className="text-muted hover:text-danger" onPress={() => {
-                            clearSourceValue(type);
-                            setSourceRows((rows) => rows.filter((_, i) => i !== index));
-                        }}>
-                            <TrashBin className="size-4" />
-                        </Button>
-                    </div>
-                ))}
-                <Button variant="ghost" className="w-full" isDisabled={sourceRows.length >= shareSourceTypes.length} onPress={() => setSourceRows((rows) => [...rows, shareSourceTypes.find((source) => !rows.includes(source.id))!.id])}>
-                    <Plus className="size-4" />
-                    添加来源
-                </Button>
-            </div>
+                                <div className="flex flex-col gap-3">
+                                    <span className="text-sm font-medium text-foreground">节点来源</span>
+                                    {sourceRows.map((type, index) => (
+                                        <div key={type} className="flex items-center gap-2">
+                                            <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[6rem_minmax(0,1fr)] sm:items-center">
+                                                <Select className="w-full" aria-label="来源类型" variant="secondary" value={type} onChange={(key) => {
+                                                    const next = String(key) as ShareSourceType;
+                                                    if (next === type) return;
+                                                    clearSourceValue(type);
+                                                    setSourceRows((rows) => rows.map((row, i) => (i === index ? next : row)));
+                                                }}>
+                                                    <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+                                                    <Select.Popover>
+                                                        <ListBox>
+                                                            {shareSourceTypes.filter((source) => source.id === type || !sourceRows.includes(source.id)).map((source) => (
+                                                                <ListBox.Item key={source.id} id={source.id}>{source.name}</ListBox.Item>
+                                                            ))}
+                                                        </ListBox>
+                                                    </Select.Popover>
+                                                </Select>
+                                                <SourcePicker
+                                                    placeholder={`选择${shareSourceTypes.find((source) => source.id === type)!.name}`}
+                                                    value={getSourceValue(type)}
+                                                    options={getSourceOptions(type)}
+                                                    onChange={(ids) => setSourceValue(type, ids)}
+                                                />
+                                            </div>
+                                            <Button isIconOnly size="sm" variant="ghost" className="text-muted hover:text-danger" onPress={() => {
+                                                clearSourceValue(type);
+                                                setSourceRows((rows) => rows.filter((_, i) => i !== index));
+                                            }}>
+                                                <TrashBin className="size-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                    <Button variant="ghost" className="w-full" isDisabled={sourceRows.length >= shareSourceTypes.length} onPress={() => setSourceRows((rows) => [...rows, shareSourceTypes.find((source) => !rows.includes(source.id))!.id])}>
+                                        <Plus className="size-4" />
+                                        添加来源
+                                    </Button>
+                                </div>
 
-            <Disclosure className="w-full">
-                <Disclosure.Heading>
-                    <Disclosure.Trigger className="flex w-full items-center justify-between text-sm font-medium text-foreground">
-                        节点筛选
-                        <Disclosure.Indicator />
-                    </Disclosure.Trigger>
-                </Disclosure.Heading>
-                <Disclosure.Content className="flex flex-col gap-4 !overflow-visible">
-                    <div className="grid gap-4 pt-2 sm:grid-cols-2">
-                        <OptionalNumberField label="最小延迟 ms" value={formState.filter.min_delay} onChange={(value) => setFilter("min_delay", value)} />
-                        <OptionalNumberField label="最大延迟 ms" value={formState.filter.max_delay} onChange={(value) => setFilter("max_delay", value)} />
-                        <OptionalNumberField label="最小速度 kb/s" value={formState.filter.min_download_speed} onChange={(value) => setFilter("min_download_speed", value)} />
-                        <OptionalNumberField label="最大速度 kb/s" value={formState.filter.max_download_speed} onChange={(value) => setFilter("max_download_speed", value)} />
-                    </div>
-                    <CountryPicker label="包含国家" value={formState.filter.include_country_codes ?? []} onChange={(value) => setFilter("include_country_codes", value)} />
-                    <CountryPicker label="排除国家" value={formState.filter.exclude_country_codes ?? []} onChange={(value) => setFilter("exclude_country_codes", value)} />
-                </Disclosure.Content>
-            </Disclosure>
+                                <Disclosure className="w-full">
+                                    <Disclosure.Heading>
+                                        <Disclosure.Trigger className="flex w-full items-center justify-between text-sm font-medium text-foreground">
+                                            节点筛选
+                                            <Disclosure.Indicator />
+                                        </Disclosure.Trigger>
+                                    </Disclosure.Heading>
+                                    <Disclosure.Content className="flex flex-col gap-4 !overflow-visible">
+                                        <div className="grid gap-4 pt-2 sm:grid-cols-2">
+                                            <OptionalNumberField label="最小延迟 ms" value={formState.filter.min_delay} onChange={(value) => setFilter("min_delay", value)} />
+                                            <OptionalNumberField label="最大延迟 ms" value={formState.filter.max_delay} onChange={(value) => setFilter("max_delay", value)} />
+                                            <OptionalNumberField label="最小速度 kb/s" value={formState.filter.min_download_speed} onChange={(value) => setFilter("min_download_speed", value)} />
+                                            <OptionalNumberField label="最大速度 kb/s" value={formState.filter.max_download_speed} onChange={(value) => setFilter("max_download_speed", value)} />
+                                        </div>
+                                        <CountryPicker label="包含国家" value={formState.filter.include_country_codes ?? []} onChange={(value) => setFilter("include_country_codes", value)} />
+                                        <CountryPicker label="排除国家" value={formState.filter.exclude_country_codes ?? []} onChange={(value) => setFilter("exclude_country_codes", value)} />
+                                    </Disclosure.Content>
+                                </Disclosure>
 
-            <TextField value={formState.node_rename_expression} onChange={(value) => setForm("node_rename_expression", value)}>
-                <div className="flex items-center gap-2">
-                    <Label className="flex-1">重命名表达式</Label>
-                    <Dropdown>
-                        <Button isIconOnly type="button" size="sm" variant="ghost" aria-label="选择重命名模板" isDisabled={renameTemplates.length === 0}>
-                            <FileArrowDown className="size-4" />
-                        </Button>
-                        <Dropdown.Popover className="min-w-64">
-                            <Dropdown.Menu onAction={(key) => {
-                                const template = renameTemplates.find((template) => template.id === Number(key));
-                                if (template) setForm("node_rename_expression", template.expression);
-                            }}>
-                                {[...renameTemplates].sort((a, b) => b.id - a.id).map((template) => (
-                                    <Dropdown.Item key={template.id} id={String(template.id)} textValue={template.preview}>
-                                        <Label>{template.preview}</Label>
-                                    </Dropdown.Item>
-                                ))}
-                            </Dropdown.Menu>
-                        </Dropdown.Popover>
-                    </Dropdown>
-                </div>
-                <TextArea rows={2} name="node_rename_expression" placeholder="{{.Country.NameZh}}-{{.Index}}" variant="secondary" />
-                <span className={`text-xs ${renamePreview.isError ? "text-danger" : "text-muted"}`}>
-                    预览：{renamePreview.isError ? renamePreview.error.message : renamePreview.data?.result}
-                </span>
-            </TextField>
-        </Form>
+                                <TextField value={formState.node_rename_expression} onChange={(value) => setForm("node_rename_expression", value)}>
+                                    <div className="flex items-center gap-2">
+                                        <Label className="flex-1">重命名表达式</Label>
+                                        <Dropdown>
+                                            <Button isIconOnly type="button" size="sm" variant="ghost" aria-label="选择重命名模板" isDisabled={renameTemplates.length === 0}>
+                                                <FileArrowDown className="size-4" />
+                                            </Button>
+                                            <Dropdown.Popover className="min-w-64">
+                                                <Dropdown.Menu onAction={(key) => {
+                                                    const template = renameTemplates.find((template) => template.id === Number(key));
+                                                    if (template) setForm("node_rename_expression", template.expression);
+                                                }}>
+                                                    {[...renameTemplates].sort((a, b) => b.id - a.id).map((template) => (
+                                                        <Dropdown.Item key={template.id} id={String(template.id)} textValue={template.preview}>
+                                                            <Label>{template.preview}</Label>
+                                                        </Dropdown.Item>
+                                                    ))}
+                                                </Dropdown.Menu>
+                                            </Dropdown.Popover>
+                                        </Dropdown>
+                                    </div>
+                                    <TextArea rows={2} name="node_rename_expression" placeholder="{{.Country.NameZh}}-{{.Index}}" variant="secondary" />
+                                    <span className={`text-xs ${renamePreview.isError ? "text-danger" : "text-muted"}`}>
+                                        预览：{renamePreview.isError ? renamePreview.error.message : renamePreview.data?.result}
+                                    </span>
+                                </TextField>
+                            </Form>
+                        </Modal.Body>
+                        <Modal.Footer>
+                            <Button variant="ghost" slot="close">取消</Button>
+                            <Button type="submit" form="share-form" variant="primary">{editing ? "保存" : "添加"}</Button>
+                        </Modal.Footer>
+                    </Modal.Dialog>
+                </Modal.Container>
+            </Modal.Backdrop>
+        </Modal>
     );
 }
 
@@ -275,15 +301,18 @@ function SourcePicker({ placeholder, value, options, onChange }: { placeholder: 
     );
 }
 
+// 渲染国家多选框，并仅在下拉列表打开时构建完整国家 collection。
 function CountryPicker({ label, value, onChange }: { label: string; value: string[]; onChange: (ids: string[]) => void }) {
+    const [isOpen, setIsOpen] = useState(false); // 国家下拉列表是否打开。
     const [searchQuery, setSearchQuery] = useState("");
     const { contains } = useFilter({ sensitivity: "base" });
     const filteredCountries = useMemo(() => searchQuery ? countryOptions.filter((country) =>
         contains(country.nameZh, searchQuery) || contains(country.nameEn, searchQuery) || contains(country.id, searchQuery)
     ) : countryOptions, [contains, searchQuery]);
+    const selectedCountries = useMemo(() => countryOptions.filter((country) => value.includes(country.id)), [value]);
 
     return (
-        <Autocomplete allowsEmptyCollection className="w-full" placeholder="选择国家" selectionMode="multiple" value={value} variant="secondary" onChange={(keys) => onChange(keysToStrings(keys))}>
+        <Autocomplete allowsEmptyCollection className="w-full" placeholder="选择国家" selectionMode="multiple" value={value} variant="secondary" onChange={(keys) => onChange(keysToStrings(keys))} onOpenChange={setIsOpen}>
             <Label>{label}</Label>
             <Autocomplete.Trigger>
                 <Autocomplete.Value>
@@ -305,7 +334,7 @@ function CountryPicker({ label, value, onChange }: { label: string; value: strin
                         </SearchField.Group>
                     </SearchField>
                     <Virtualizer layout={ListLayout} layoutOptions={{ rowHeight: 50 }}>
-                        <ListBox items={filteredCountries} renderEmptyState={() => <EmptyState>没有匹配的国家</EmptyState>}>
+                        <ListBox items={isOpen ? filteredCountries : selectedCountries} renderEmptyState={() => <EmptyState>没有匹配的国家</EmptyState>}>
                             {(country) => (
                                 <ListBox.Item id={country.id} textValue={`${country.nameZh} · ${country.nameEn}`}>
                                     <div className="flex min-w-0 flex-col">
