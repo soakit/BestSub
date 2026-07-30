@@ -61,14 +61,17 @@ func Stop() {
 	<-scheduleCron.Stop().Done()
 
 	runningMu.Lock()
-	cancels := make([]context.CancelFunc, 0, len(runningTasks))
+	states := make([]*runState, 0, len(runningTasks))
 	for id, state := range runningTasks {
-		cancels = append(cancels, state.cancel)
+		states = append(states, state)
 		delete(runningTasks, id)
 	}
 	runningMu.Unlock()
-	for _, cancel := range cancels {
-		cancel()
+	for _, state := range states {
+		state.cancel()
+	}
+	for _, state := range states {
+		<-state.done
 	}
 }
 
