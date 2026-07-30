@@ -1,6 +1,8 @@
 package store
 
 import (
+	"net/url"
+
 	"github.com/bestruirui/bestsub/internal/conf"
 	"github.com/bestruirui/bestsub/internal/model"
 
@@ -18,7 +20,16 @@ func InitDB() error {
 	if conf.IsDebug() {
 		gormConfig.Logger = logger.Default.LogMode(logger.Info)
 	}
-	db, err = gorm.Open(sqlite.Open(conf.AppConfig.Database.Path), &gormConfig)
+	params := url.Values{}
+	params.Add("_pragma", "journal_mode(WAL)")
+	params.Add("_pragma", "synchronous(NORMAL)")
+	params.Add("_pragma", "cache_size(10000)")
+	params.Add("_pragma", "busy_timeout(5000)")
+	params.Add("_pragma", "foreign_keys(ON)")
+	params.Add("_pragma", "auto_vacuum(INCREMENTAL)")
+	params.Add("_pragma", "mmap_size(268435456)")
+	params.Add("_pragma", "locking_mode(NORMAL)")
+	db, err = gorm.Open(sqlite.Open(conf.AppConfig.Database.Path+"?"+params.Encode()), &gormConfig)
 	if err != nil {
 		return err
 	}
