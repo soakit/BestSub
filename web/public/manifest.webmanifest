@@ -68,5 +68,49 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot/dashboard.png",
+      "sizes": "2400x1400",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "仪表盘"
+    },
+    {
+      "src": "/screenshot/sub.png",
+      "sizes": "2400x1400",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "订阅"
+    },
+    {
+      "src": "/screenshot/node.png",
+      "sizes": "2400x1400",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "节点"
+    },
+    {
+      "src": "/screenshot/task.png",
+      "sizes": "2400x1400",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "任务"
+    },
+    {
+      "src": "/screenshot/share.png",
+      "sizes": "2400x1400",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "分享"
+    },
+    {
+      "src": "/screenshot/setting.png",
+      "sizes": "2400x1400",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "设置"
+    }
   ]
 }

@@ -1,17 +1,21 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/bestruirui/bestsub/internal/conf"
 	"github.com/bestruirui/bestsub/internal/model"
+	"github.com/bestruirui/bestsub/internal/node"
 	_ "github.com/bestruirui/bestsub/internal/server/handlers"
 	"github.com/bestruirui/bestsub/internal/server/middleware"
 	"github.com/bestruirui/bestsub/internal/server/router"
+	"github.com/bestruirui/bestsub/internal/service"
 	"github.com/bestruirui/bestsub/internal/store"
 	"github.com/bestruirui/bestsub/internal/task"
 	"github.com/bestruirui/bestsub/internal/utils"
@@ -43,9 +47,10 @@ var startCmd = &cobra.Command{
 		}
 
 		r := gin.New()
-
+		if conf.IsDebug() {
+			r.Use(middleware.Logger())
+		}
 		r.Use(middleware.Cors())
-		r.Use(middleware.Logger())
 		r.Use(middleware.StaticEmbed("/", static.StaticFS))
 
 		router.RegisterAll(r)
@@ -64,6 +69,9 @@ var startCmd = &cobra.Command{
 			log.Errorf("user init error: %v", err)
 			return
 		}
+		if err := node.PoolLoad(); err != nil {
+			log.Errorf("node pool snapshot load error: %v", err)
+		}
 
 		// 从数据库加载 DNS 配置并生效
 		defStr := store.SettingGet(model.SettingDNSDefault)
@@ -72,11 +80,16 @@ var startCmd = &cobra.Command{
 			mihomo.UpdateDNSConfig(utils.SplitComma(defStr), utils.SplitComma(mainStr))
 		}
 
-		if err := task.Start(cmd.Context()); err != nil {
-			log.Errorf("task service init error: %v", err)
+		if err := service.StartSubscriptionScheduler(); err != nil {
+			log.Errorf("subscription scheduler init error: %v", err)
 			return
 		}
-		defer task.Stop()
+
+		if err := task.Start(cmd.Context()); err != nil {
+			log.Errorf("task service init error: %v", err)
+			service.StopSubscriptionScheduler()
+			return
+		}
 
 		addr := fmt.Sprintf("%s:%d", conf.AppConfig.Server.Host, conf.AppConfig.Server.Port)
 		log.Infof("http server listening on http://%s", addr)
@@ -92,6 +105,18 @@ var startCmd = &cobra.Command{
 		signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 		// 等 Ctrl+C，让命令正常返回，避免 Windows 默认中断退出码 0xc000013a。
 		<-quit
+		signal.Stop(quit)
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := httpSrv.Shutdown(shutdownCtx); err != nil {
+			log.Errorf("http server shutdown error: %v", err)
+		}
+		cancel()
+		task.Stop()
+		service.StopSubscriptionScheduler()
+		if err := node.PoolSave(); err != nil {
+			log.Errorf("node pool snapshot save error: %v", err)
+		}
 	},
 }
 
