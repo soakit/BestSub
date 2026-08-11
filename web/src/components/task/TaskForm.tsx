@@ -354,7 +354,7 @@ export function TaskForm({ ref, tasks }: { ref?: React.Ref<(task?: Task) => void
                                         </Switch>
                                     </Disclosure.Heading>
                                     <Disclosure.Content className="flex flex-col gap-4 pt-2 !overflow-visible">
-                                        <Select isRequired className="w-full" variant="secondary" value={formState.storage_id} onChange={(key) => setForm("storage_id", typeof key === "string" ? key : null)}>
+                                        <Select isRequired={formState.storage_enable === 1} className="w-full" variant="secondary" value={formState.storage_id} onChange={(key) => setForm("storage_id", typeof key === "string" ? key : null)}>
                                                     <Label>储存目标</Label>
                                                     <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
                                                     <Select.Popover>
