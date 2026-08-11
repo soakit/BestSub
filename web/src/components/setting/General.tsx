@@ -34,7 +34,7 @@ export function General({ val, set }: { val: (key: string) => string; set: (key:
                         placeholder="http://127.0.0.1:7890"
                         variant="secondary"
                         onChange={(e) => setPending((prev) => ({ ...prev, proxy_url: e.target.value }))}
-                        onBlur={() => set("proxy_url", pending.proxy_url ?? "")}
+                        onBlur={(e) => set("proxy_url", e.currentTarget.value)}
                     />
                 </div>
 
@@ -47,7 +47,7 @@ export function General({ val, set }: { val: (key: string) => string; set: (key:
                         placeholder="https://example.com/sub"
                         variant="secondary"
                         onChange={(e) => setPending((prev) => ({ ...prev, sub_convert_url: e.target.value }))}
-                        onBlur={() => set("sub_convert_url", pending.sub_convert_url ?? "")}
+                        onBlur={(e) => set("sub_convert_url", e.currentTarget.value)}
                     />
                 </div>
 

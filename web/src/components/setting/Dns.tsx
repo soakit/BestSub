@@ -21,7 +21,7 @@ export function Dns({ val, set }: { val: (key: string) => string; set: (key: str
                         placeholder="119.29.29.29,223.5.5.5"
                         variant="secondary"
                         onChange={(e) => setPending((prev) => ({ ...prev, dns_default: e.target.value }))}
-                        onBlur={() => set("dns_default", pending.dns_default ?? "")}
+                        onBlur={(e) => set("dns_default", e.currentTarget.value)}
                     />
                 </div>
 
@@ -34,7 +34,7 @@ export function Dns({ val, set }: { val: (key: string) => string; set: (key: str
                         placeholder="https://doh.pub/dns-query"
                         variant="secondary"
                         onChange={(e) => setPending((prev) => ({ ...prev, dns_main: e.target.value }))}
-                        onBlur={() => set("dns_main", pending.dns_main ?? "")}
+                        onBlur={(e) => set("dns_main", e.currentTarget.value)}
                     />
                 </div>
             </div>
