@@ -49,7 +49,7 @@ func New(proxy string) *http.Client {
 		tls = true
 	}
 
-	raw := fmt.Appendf(nil, "{type: %s, server: %s, port: %s", proxyType, u.Hostname(), u.Port())
+	raw := fmt.Appendf(nil, "{name: bestsub, type: %s, server: %s, port: %s", proxyType, u.Hostname(), u.Port())
 	if tls {
 		raw = append(raw, ", tls: true"...)
 	}

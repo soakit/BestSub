@@ -42,17 +42,17 @@ jobs:
           git tag "${VERSION}"
           git push origin "${VERSION}"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: '11.10.0'
-
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 'latest'
-          cache: 'pnpm'
-          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: '11.10.0'
+          cache: true
+          cache_dependency_path: web/pnpm-lock.yaml
 
       - name: Build frontend
         working-directory: web
