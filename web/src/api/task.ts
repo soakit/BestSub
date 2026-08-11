@@ -51,7 +51,7 @@ export type TaskStep = {
 
 export type StorageConfig = {
     storage_enable: number;
-    storage_id: string;
+    storage_id: string | null;
     storage?: Storage;
     save_format: TaskSaveFormat;
     save_path: string;

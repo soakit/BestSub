@@ -12,10 +12,7 @@ import (
 
 // saveTaskOutput 将最终节点组装、转换后写入任务指定的储存目标。
 func saveTaskOutput(ctx context.Context, task model.Task, nodes []node.Node) error {
-	target, ok := store.StorageGet(task.StorageID)
-	if !ok {
-		return fmt.Errorf("storage target not found: %s", task.StorageID)
-	}
+	target, _ := store.StorageGet(*task.StorageID)
 
 	content, err := node.Mihomo(nodes, task.NodeRenameExpression)
 	if err != nil {

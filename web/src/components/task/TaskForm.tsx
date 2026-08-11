@@ -31,7 +31,7 @@ const defaultConfig: TaskConfig = {
     custom_landing_node_enable: 0,
     landing_node: { id: "" },
     storage_enable: 0,
-    storage_id: "",
+    storage_id: null,
     save_format: "Mihomo",
     save_path: "",
     node_rename_expression: "",
@@ -190,7 +190,7 @@ export function TaskForm({ ref, tasks }: { ref?: React.Ref<(task?: Task) => void
             result_tasks: formState.result_tasks.map((task) => ({ id: task.id })),
             custom_landing_node_enable: customLandingEnabled ? 1 : 0,
             landing_node: customLandingEnabled ? { id: formState.landing_node.id } : { id: "" },
-            storage_id: formState.storage_enable === 1 ? formState.storage_id : "",
+            storage_id: formState.storage_enable === 1 ? formState.storage_id : null,
             save_path: formState.storage_enable === 1 ? formState.save_path.trim() : "",
             node_rename_expression: formState.storage_enable === 1 ? formState.node_rename_expression.trim() : "",
         };
@@ -354,7 +354,7 @@ export function TaskForm({ ref, tasks }: { ref?: React.Ref<(task?: Task) => void
                                         </Switch>
                                     </Disclosure.Heading>
                                     <Disclosure.Content className="flex flex-col gap-4 pt-2 !overflow-visible">
-                                        <Select className="w-full" variant="secondary" value={formState.storage_id} onChange={(key) => setForm("storage_id", String(key))}>
+                                        <Select isRequired className="w-full" variant="secondary" value={formState.storage_id} onChange={(key) => setForm("storage_id", typeof key === "string" ? key : null)}>
                                                     <Label>储存目标</Label>
                                                     <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
                                                     <Select.Popover>

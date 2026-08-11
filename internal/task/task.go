@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/bestruirui/bestsub/internal/model"
@@ -76,7 +77,7 @@ func Stop() {
 }
 
 func Create(task *model.Task) error {
-	if err := ValidateSchedule(task.TaskConfig); err != nil {
+	if err := normalizeConfig(&task.TaskConfig); err != nil {
 		return err
 	}
 	if err := store.TaskCreate(task); err != nil {
@@ -89,7 +90,7 @@ func Update(id string, config model.TaskConfig) error {
 	if _, ok := store.TaskGet(id); !ok {
 		return fmt.Errorf("%w: %s", ErrTaskNotFound, id)
 	}
-	if err := ValidateSchedule(config); err != nil {
+	if err := normalizeConfig(&config); err != nil {
 		return err
 	}
 	if err := store.TaskUpdateConfig(id, config); err != nil {
@@ -100,6 +101,26 @@ func Update(id string, config model.TaskConfig) error {
 		return fmt.Errorf("%w: %s", ErrTaskNotFound, id)
 	}
 	return syncSchedule(task)
+}
+
+// normalizeConfig 规范并校验任务调度和储存配置。
+func normalizeConfig(config *model.TaskConfig) error {
+	if err := ValidateSchedule(*config); err != nil {
+		return err
+	}
+	if config.StorageEnable != 1 {
+		config.StorageID = nil
+		return nil
+	}
+	if config.StorageID == nil || strings.TrimSpace(*config.StorageID) == "" {
+		return fmt.Errorf("storage target is required")
+	}
+	storageID := strings.TrimSpace(*config.StorageID)
+	if _, ok := store.StorageGet(storageID); !ok {
+		return fmt.Errorf("storage target not found: %s", storageID)
+	}
+	config.StorageID = &storageID
+	return nil
 }
 
 func Delete(id string) error {

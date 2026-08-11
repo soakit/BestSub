@@ -47,7 +47,7 @@ func TaskCreate(task *model.Task) error {
 	}
 
 	if err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Omit("LandingNode").Create(task).Error; err != nil {
+		if err := tx.Omit("LandingNode", "Storage").Create(task).Error; err != nil {
 			return err
 		}
 		if err := tx.Omit("Subscriptions.*").Model(task).Association("Subscriptions").Replace(subscriptions); err != nil {
