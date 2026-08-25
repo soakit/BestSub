@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -93,7 +94,15 @@ var startCmd = &cobra.Command{
 
 		addr := fmt.Sprintf("%s:%d", conf.AppConfig.Server.Host, conf.AppConfig.Server.Port)
 		log.Infof("http server listening on http://%s", addr)
-		httpSrv := &http.Server{Addr: addr, Handler: r}
+		// SSE 等长连接永远不会变为 idle，Shutdown 只能等超时；
+		// 用可取消的 BaseContext 让处理器在关停时主动返回。
+		srvCtx, srvCancel := context.WithCancel(context.Background())
+		defer srvCancel()
+		httpSrv := &http.Server{
+			Addr:        addr,
+			Handler:     r,
+			BaseContext: func(net.Listener) context.Context { return srvCtx },
+		}
 
 		go func() {
 			if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -106,6 +115,9 @@ var startCmd = &cobra.Command{
 		// 等 Ctrl+C，让命令正常返回，避免 Windows 默认中断退出码 0xc000013a。
 		<-quit
 		signal.Stop(quit)
+
+		// 先断开长连接处理器，再关闭 http 服务，避免白等 Shutdown 超时。
+		srvCancel()
 
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		if err := httpSrv.Shutdown(shutdownCtx); err != nil {
