@@ -4,6 +4,7 @@ import (
 	"net/url"
 
 	"github.com/bestruirui/bestsub/internal/conf"
+	"github.com/bestruirui/bestsub/internal/migrate"
 	"github.com/bestruirui/bestsub/internal/model"
 
 	"gorm.io/gorm"
@@ -33,7 +34,10 @@ func InitDB() error {
 	if err != nil {
 		return err
 	}
-	return db.AutoMigrate(
+	if err := migrate.BeforeAutoMigrate(db); err != nil {
+		return err
+	}
+	if err := db.AutoMigrate(
 		new(model.User),
 		new(model.Subscription),
 		new(model.Node),
@@ -43,7 +47,10 @@ func InitDB() error {
 		new(model.Share),
 		new(model.Setting),
 		new(model.RenameTemplate),
-	)
+	); err != nil {
+		return err
+	}
+	return migrate.AfterAutoMigrate(db)
 }
 
 func InitStore() error {
