@@ -39,6 +39,9 @@ func NormalizeConfig(config *model.ShareConfig) error {
 			return fmt.Errorf("subscription not found: %s", sub.ID)
 		}
 	}
+	config.Subscriptions = slices.DeleteFunc(config.Subscriptions, func(sub model.SubscriptionRef) bool {
+		return node.PoolCount(sub.ID) == 0
+	})
 	for _, node := range config.Nodes {
 		if node.ID == "" {
 			return fmt.Errorf("node id is required")
@@ -79,10 +82,14 @@ func Write(share model.Share, writer io.Writer) error {
 		return err
 	}
 	if len(nodes) == 0 {
-		_, err := io.WriteString(writer, "proxies: \n")
+		content, err := node.MihomoClashProfile(nil, share.NodeRenameExpression)
+		if err != nil {
+			return err
+		}
+		_, err = writer.Write(content)
 		return err
 	}
-	content, err := node.Mihomo(nodes, share.NodeRenameExpression)
+	content, err := node.MihomoClashProfile(nodes, share.NodeRenameExpression)
 	if err != nil {
 		return fmt.Errorf("build share Mihomo subscription: %w", err)
 	}

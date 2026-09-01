@@ -16,12 +16,17 @@ PID_FILE="$RUNTIME/bestsub.pid"
 
 # 来自 getsubs.md 的公开订阅源
 SUB_URLS=(
-  "https://raw.githubusercontent.com/snakem982/proxypool/main/source/clash-meta.yaml"
   "https://raw.githubusercontent.com/ripaojiedian/freenode/main/clash"
   "https://raw.githubusercontent.com/vxiaov/free_proxies/main/clash/clash.provider.yaml"
   "https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.yml"
-  "https://raw.githubusercontent.com/Ruk1ng001/freeSub/main/clash_top30.yaml"
   "https://raw.githubusercontent.com/peasoft/NoMoreWalls/refs/heads/master/list.yml"
+)
+
+# 具名订阅（name|url，用于 gist 等需自定义名称的源）
+SUB_NAMED_URLS=(
+  "gist-xuehu2319|https://gist.fshare.wang/xuehu2319/all.yaml?key=q8317831"
+  "gist-tdison|https://gist.fshare.wang/Tdison/all.yaml?key=q8317831"
+  "gist-wlget|https://gist.fshare.wang/WLget/all.yaml?key=q8317831"
 )
 
 # 链接列表型订阅（每行一个 URL，BestSub 会逐个拉取）
@@ -136,6 +141,25 @@ add_subscriptions() {
     echo "  已添加: $name"
   done
 
+  echo "添加具名订阅..."
+  for entry in "${SUB_NAMED_URLS[@]}"; do
+    local name="${entry%%|*}" url="${entry#*|}"
+    if echo "$existing" | python3 -c "import json,sys; subs=json.load(sys.stdin)['data']; sys.exit(0 if any('$url' in s.get('url',[]) for s in subs) else 1)" 2>/dev/null; then
+      echo "  跳过已存在: $name"
+      continue
+    fi
+    api POST /api/v1/sub/create -d "{
+      \"name\": \"$name\",
+      \"url\": [\"$url\"],
+      \"url_type\": 0,
+      \"enable\": 1,
+      \"auto_update\": 1,
+      \"cron_expr\": \"0 */6 * * *\",
+      \"proxy_mode\": 0
+    }" >/dev/null
+    echo "  已添加: $name"
+  done
+
   echo "添加链接列表订阅..."
   for entry in "${SUB_LIST_SOURCES[@]}"; do
     local name="${entry%%|*}" list_url="${entry#*|}"
@@ -166,6 +190,43 @@ refresh_subscriptions() {
   done
   echo "  已触发刷新，当前节点池: $count_before 个（会继续增长）"
   echo "  含 gist 大列表时建议稍后在 WebUI 查看订阅进度"
+}
+
+# 删除已刷新完成且可用节点为 0 的订阅（仍在刷新中的暂不删除）
+prune_empty_subscriptions() {
+  echo "剔除可用节点为 0 的订阅..."
+  api GET /api/v1/sub/list | COOKIE_JAR="$COOKIE_JAR" BASE_URL="$BASE_URL" python3 <<'PY'
+import json, os, subprocess, sys
+
+cookie = os.environ["COOKIE_JAR"]
+base = os.environ["BASE_URL"]
+removed = 0
+subs = json.load(sys.stdin)["data"]
+for s in subs:
+    if s.get("node_num", 0) != 0:
+        continue
+    refreshed = s.get("refreshed_at") or ""
+    name = s.get("name", s["id"])
+    if not refreshed or refreshed.startswith("0001"):
+        print(f"  跳过（尚未刷新完成）: {name}", file=sys.stderr)
+        continue
+    r = subprocess.run(
+        ["curl", "-sS", f"{base}/api/v1/sub/del/{s['id']}", "-X", "DELETE", "-b", cookie],
+        capture_output=True, text=True,
+    )
+    try:
+        payload = json.loads(r.stdout or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    if payload.get("code") == 200:
+        print(f"  已删除: {name}")
+        removed += 1
+    else:
+        msg = payload.get("message", r.stdout.strip())
+        print(f"  删除失败: {name} - {msg}", file=sys.stderr)
+if removed == 0:
+    print("  无需剔除")
+PY
 }
 
 create_task() {
@@ -314,11 +375,11 @@ for s in json.load(sys.stdin)['data']:
       "nodes": [],
       "tags": []
     }'
-    # all_input 无法通过 share API 表达，改用全部已有订阅 ID
+    # all_input 无法通过 share API 表达，改用已有且可用节点 > 0 的订阅
     payload=$(api GET /api/v1/sub/list | python3 -c "
 import json,sys
 subs=json.load(sys.stdin)['data']
-refs=[{'id': s['id']} for s in subs]
+refs=[{'id': s['id']} for s in subs if s.get('node_num',0)>0]
 print(json.dumps({
     'name': '优质节点',
     'filter': {'max_delay': 3000, 'limit': 100},
@@ -369,6 +430,7 @@ main() {
   refresh_subscriptions
   task_id=$(create_task) || { echo "任务创建失败" >&2; exit 1; }
   run_task "$task_id" || true
+  prune_empty_subscriptions
   token=$(create_share "$task_id") || token=""
 
   echo ""
