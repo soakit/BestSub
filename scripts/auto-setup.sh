@@ -24,6 +24,11 @@ SUB_URLS=(
   "https://raw.githubusercontent.com/peasoft/NoMoreWalls/refs/heads/master/list.yml"
 )
 
+# 链接列表型订阅（每行一个 URL，BestSub 会逐个拉取）
+SUB_LIST_SOURCES=(
+  "gist-subscribes|https://gist.githubusercontent.com/sucan2233/7c426c2d0494ce074d41852e509be155/raw/03c689dbba7e90b70f04f55b976f885f7fcb6497/subscribes.txt"
+)
+
 api() {
   local method="$1" path="$2"
   shift 2
@@ -130,22 +135,41 @@ add_subscriptions() {
     }" >/dev/null
     echo "  已添加: $name"
   done
+
+  echo "添加链接列表订阅..."
+  for entry in "${SUB_LIST_SOURCES[@]}"; do
+    local name="${entry%%|*}" list_url="${entry#*|}"
+    if echo "$existing" | python3 -c "import json,sys; subs=json.load(sys.stdin)['data']; sys.exit(0 if any('$list_url' in s.get('url',[]) for s in subs) else 1)" 2>/dev/null; then
+      echo "  跳过已存在: $name"
+      continue
+    fi
+    api POST /api/v1/sub/create -d "{
+      \"name\": \"$name\",
+      \"url\": [\"$list_url\"],
+      \"url_type\": 1,
+      \"enable\": 1,
+      \"auto_update\": 1,
+      \"cron_expr\": \"0 */6 * * *\",
+      \"proxy_mode\": 0
+    }" >/dev/null
+    echo "  已添加列表: $name ($(curl -sS "$list_url" | grep -cE '^https?://' || echo '?') 条链接)"
+  done
 }
 
 refresh_subscriptions() {
-  echo "刷新所有订阅（可能需要几分钟）..."
-  local ids
+  echo "刷新所有订阅（后台异步执行，大列表需较长时间）..."
+  local ids count_before
   ids=$(api GET /api/v1/sub/list | python3 -c "import json,sys; print(' '.join(s['id'] for s in json.load(sys.stdin)['data']))")
+  count_before=$(api GET /api/v1/sub/list | python3 -c "import json,sys; print(sum(s.get('node_num',0) for s in json.load(sys.stdin)['data']))")
   for id in $ids; do
-    api POST "/api/v1/sub/refresh/$id" --max-time 120 >/dev/null || true
+    api POST "/api/v1/sub/refresh/$id" >/dev/null 2>&1 || true
   done
-  local count
-  count=$(api GET /api/v1/sub/list | python3 -c "import json,sys; print(sum(s.get('node_num',0) for s in json.load(sys.stdin)['data']))")
-  echo "  当前节点池共 $count 个节点"
+  echo "  已触发刷新，当前节点池: $count_before 个（会继续增长）"
+  echo "  含 gist 大列表时建议稍后在 WebUI 查看订阅进度"
 }
 
 create_task() {
-  echo "创建/更新检测任务..."
+  echo "创建/更新检测任务..." >&2
   local tasks task_id
   tasks=$(api GET /api/v1/task/list)
   task_id=$(echo "$tasks" | python3 -c "
@@ -171,9 +195,9 @@ for t in tasks:
     "steps": [
       {
         "type": "delay",
-        "params": {"url": "https://gstatic.com/generate_204", "timeout_ms": 2000, "attempts": 1},
+        "params": {"url": "https://gstatic.com/generate_204", "timeout_ms": 3000, "attempts": 1},
         "concurrency": 100,
-        "pass": {"max_delay": 2000},
+        "pass": {"max_delay": 3000},
         "order": 1,
         "node_pool_delete": 0,
         "skip_existing": 1
@@ -182,7 +206,7 @@ for t in tasks:
         "type": "speed",
         "params": {"url": "https://speed.cloudflare.com/__down?during=download&bytes=999999", "timeout_ms": 10000},
         "concurrency": 10,
-        "pass": {"min_download_speed": 2048},
+        "pass": {"min_download_speed": 1024},
         "order": 2,
         "node_pool_delete": 0,
         "skip_existing": 0
@@ -192,42 +216,74 @@ for t in tasks:
 
   if [[ -n "$task_id" ]]; then
     api PUT "/api/v1/task/update/$task_id" -d "$payload" >/dev/null
-    echo "  已更新任务: $task_id"
+    echo "  已更新任务: $task_id" >&2
   else
     task_id=$(api POST /api/v1/task/create -d "$payload" | python3 -c "import json,sys; print(json.load(sys.stdin)['data']['id'])")
-    echo "  已创建任务: $task_id"
+    echo "  已创建任务: $task_id" >&2
   fi
-  echo "$task_id"
+
+  if [[ ! "$task_id" =~ ^[0-9a-f-]{36}$ ]]; then
+    echo "任务 ID 无效: $task_id" >&2
+    return 1
+  fi
+  printf '%s' "$task_id"
 }
 
 run_task() {
   local task_id="$1"
-  echo "运行节点检测任务（约 3-10 分钟，取决于节点数量）..."
-  api POST "/api/v1/task/run/$task_id" >/dev/null || true
-  for i in $(seq 1 120); do
+  if [[ ! "$task_id" =~ ^[0-9a-f-]{36}$ ]]; then
+    echo "跳过任务运行：无效的任务 ID" >&2
+    return 1
+  fi
+
+  local finished_before
+  finished_before=$(api GET "/api/v1/task/get/$task_id" | python3 -c "import json,sys; print(json.load(sys.stdin)['data'].get('finished_at',''))")
+
+  echo "运行节点检测任务（节点多时需要更久，可在 WebUI 查看进度）..." >&2
+  if ! api POST "/api/v1/task/run/$task_id" >/dev/null 2>&1; then
+    echo "  任务可能已在运行，继续等待结果..." >&2
+  fi
+
+  for i in $(seq 1 360); do
     sleep 5
-    local result_count
+    local finished_now result_count
+    finished_now=$(api GET "/api/v1/task/get/$task_id" 2>/dev/null | python3 -c "
+import json,sys
+try:
+    print(json.load(sys.stdin)['data'].get('finished_at',''))
+except: print('')
+" 2>/dev/null || echo "")
     result_count=$(api GET "/api/v1/task/result/$task_id" 2>/dev/null | python3 -c "
 import json,sys
 try:
     print(json.load(sys.stdin)['data'])
 except: print(0)
 " 2>/dev/null || echo "0")
-    if [[ "$result_count" =~ ^[0-9]+$ && "$result_count" -gt 0 ]]; then
-      echo "  检测完成，优质节点: $result_count 个"
+
+    if [[ -n "$finished_now" && "$finished_now" != "$finished_before" ]]; then
+      echo "  检测完成，优质节点: ${result_count} 个" >&2
+      if [[ "$result_count" == "0" ]]; then
+        echo "  提示: 无节点通过筛选，可在 WebUI 调低测速/延迟条件后重跑" >&2
+      fi
       return 0
     fi
-    if (( i % 6 == 0 )); then
-      echo "  仍在检测中... (${i}x5s)"
+    if (( i % 12 == 0 )); then
+      echo "  仍在检测中... (${i}x5s，当前通过: ${result_count})" >&2
     fi
   done
-  echo "  检测超时，可在 WebUI 查看进度: $BASE_URL"
+  echo "  检测超时，可在 WebUI 查看进度: $BASE_URL" >&2
 }
 
 create_share() {
   local task_id="$1"
-  echo "创建分享链接..."
-  local shares share_id token
+  echo "创建分享链接..." >&2
+  local shares share_id token result_count
+  result_count=$(api GET "/api/v1/task/result/$task_id" 2>/dev/null | python3 -c "
+import json,sys
+try: print(json.load(sys.stdin)['data'])
+except: print(0)
+" 2>/dev/null || echo "0")
+
   shares=$(api GET /api/v1/share/list)
   share_id=$(echo "$shares" | python3 -c "
 import json,sys
@@ -236,28 +292,67 @@ for s in json.load(sys.stdin)['data']:
         print(s['id']); break
 " 2>/dev/null || true)
 
-  local payload="{
-    \"name\": \"优质节点\",
-    \"filter\": {\"max_delay\": 2000, \"min_download_speed\": 2048, \"limit\": 100},
-    \"node_rename_expression\": \"\",
-    \"result_tasks\": [{\"id\": \"$task_id\"}],
-    \"subscriptions\": [],
-    \"nodes\": [],
-    \"tags\": []
-  }"
+  local payload
+  if [[ "$result_count" =~ ^[0-9]+$ && "$result_count" -gt 0 ]]; then
+    payload="{
+      \"name\": \"优质节点\",
+      \"filter\": {\"max_delay\": 3000, \"min_download_speed\": 1024, \"limit\": 100},
+      \"node_rename_expression\": \"\",
+      \"result_tasks\": [{\"id\": \"$task_id\"}],
+      \"subscriptions\": [],
+      \"nodes\": [],
+      \"tags\": []
+    }"
+  else
+    echo "  任务结果为空，改为分享全部订阅节点（延迟≤3000ms）" >&2
+    payload='{
+      "name": "优质节点",
+      "filter": {"max_delay": 3000, "limit": 100},
+      "node_rename_expression": "",
+      "result_tasks": [],
+      "subscriptions": [],
+      "nodes": [],
+      "tags": []
+    }'
+    # all_input 无法通过 share API 表达，改用全部已有订阅 ID
+    payload=$(api GET /api/v1/sub/list | python3 -c "
+import json,sys
+subs=json.load(sys.stdin)['data']
+refs=[{'id': s['id']} for s in subs]
+print(json.dumps({
+    'name': '优质节点',
+    'filter': {'max_delay': 3000, 'limit': 100},
+    'node_rename_expression': '',
+    'result_tasks': [],
+    'subscriptions': refs,
+    'nodes': [],
+    'tags': [],
+}))
+")
+  fi
 
   if [[ -n "$share_id" ]]; then
     api PUT "/api/v1/share/update/$share_id" -d "$payload" >/dev/null
-    token=$(echo "$shares" | python3 -c "
+    token=$(api GET /api/v1/share/list | python3 -c "
 import json,sys
 for s in json.load(sys.stdin)['data']:
     if s.get('name')=='优质节点':
         print(s['token']); break
 ")
   else
-    token=$(api POST /api/v1/share/create -d "$payload" | python3 -c "import json,sys; print(json.load(sys.stdin)['data']['token'])")
+    token=$(api POST /api/v1/share/create -d "$payload" | python3 -c "
+import json,sys
+r=json.load(sys.stdin)
+if r.get('code')!=200: raise SystemExit(r.get('message','create share failed'))
+print(r['data']['token'])
+")
   fi
-  echo "$token"
+
+  if [[ ! "$token" =~ ^[a-z]{16}$ ]]; then
+    echo "分享创建失败，请到 WebUI 手动创建" >&2
+    return 1
+  fi
+  printf '%s' "$token"
 }
 
 main() {
@@ -272,19 +367,23 @@ main() {
   configure_settings
   add_subscriptions
   refresh_subscriptions
-  task_id=$(create_task)
-  run_task "$task_id"
-  token=$(create_share "$task_id")
+  task_id=$(create_task) || { echo "任务创建失败" >&2; exit 1; }
+  run_task "$task_id" || true
+  token=$(create_share "$task_id") || token=""
 
   echo ""
   echo "========================================"
   echo " 配置完成！"
   echo "========================================"
   echo "WebUI:    $BASE_URL  (账号: $USER / $PASS)"
-  echo "优质节点: $BASE_URL/share/$token"
-  echo ""
-  echo "导入 Clash/Mihomo 客户端："
-  echo "  订阅链接 → $BASE_URL/share/$token"
+  if [[ -n "$token" ]]; then
+    echo "优质节点: $BASE_URL/share/$token"
+    echo ""
+    echo "导入 Clash/Mihomo 客户端："
+    echo "  订阅链接 → $BASE_URL/share/$token"
+  else
+    echo "分享链接未生成，请到 WebUI → 分享 页手动创建"
+  fi
   echo ""
   echo "日志: tail -f $LOG"
   echo "停止: kill \$(cat $PID_FILE)"

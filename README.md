@@ -65,6 +65,7 @@ bash scripts/stop.sh
 | `bash scripts/start.sh` | 启动服务 |
 | `bash scripts/start.sh --setup` | 启动并完成全自动配置 |
 | `bash scripts/auto-setup.sh` | 全自动配置（需服务已运行或会自动启动） |
+| `bash scripts/import-subscribes.sh` | 导入 gist 订阅链接列表（约 600+ 条） |
 | `bash scripts/stop.sh` | 停止服务 |
 | `tail -f runtime/bestsub.log` | 查看 BestSub 日志 |
 | `tail -f runtime/minisubconvert.log` | 查看转换服务日志 |
