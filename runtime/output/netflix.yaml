@@ -1,0 +1,49 @@
+proxies:
+    - cipher: aes-256-cfb
+      name: "\U0001F1E8\U0001F1F3 CN 001"
+      password: 7eadc6dbe2ae
+      port: 65443
+      server: 121.46.230.232
+      type: ss
+    - cipher: aes-256-cfb
+      name: "\U0001F1E8\U0001F1F3 CN 002"
+      password: 7eadc6dbe2ae
+      port: 65443
+      server: 121.46.230.233
+      type: ss
+    - cipher: aes-128-gcm
+      name: "\U0001F1FA\U0001F1F8 US 033"
+      password: shadowsocks
+      port: 443
+      server: 173.244.56.9
+      type: ss
+    - alterId: 0
+      cipher: auto
+      name: "\U0001F1FA\U0001F1F8 US 049"
+      network: tcp
+      port: 22324
+      server: 67.220.72.237
+      skip-cert-verify: true
+      type: vmess
+      uuid: 04621bae-ab36-11ec-b909-0242ac120002
+    - alterId: 0
+      cipher: auto
+      name: "\U0001F1EC\U0001F1E7 GB 060"
+      network: tcp
+      port: 180
+      server: 82.198.246.37
+      skip-cert-verify: true
+      type: vmess
+      uuid: d13fc2f5-3e05-4795-81eb-44143a09e552
+    - cipher: aes-128-gcm
+      name: "\U0001F1FA\U0001F1F8 US 071"
+      password: shadowsocks
+      port: 443
+      server: 156.146.38.167
+      type: ss
+    - cipher: chacha20-ietf-poly1305
+      name: "\U0001F1FA\U0001F1F8 US 084"
+      password: hCCWOcIsK5wrFz4OX70rWf
+      port: 443
+      server: 216.105.168.18
+      type: ss

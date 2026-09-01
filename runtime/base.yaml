@@ -1,0 +1,99 @@
+proxy-providers:
+  ProviderALL:
+    file: ./output/all.yaml
+    type: file
+    interval: 600
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 300
+  ProviderSpeed:
+    file: ./output/speed.yaml
+    type: file
+    interval: 600
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 300
+  ProviderOpenai:
+    file: ./output/openai.yaml
+    type: file
+    interval: 600
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 300
+  ProviderYoutube:
+    file: ./output/youtube.yaml
+    type: file
+    interval: 600
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 300
+  ProviderDisney:
+    file: ./output/disney.yaml
+    type: file
+    interval: 600
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 300
+
+# HTTP 订阅地址（BestSub 运行中可用）:
+#   http://127.0.0.1:18989/all.yaml
+#   http://127.0.0.1:18989/speed.yaml
+#   http://127.0.0.1:18989/openai.yaml
+#   http://127.0.0.1:18989/youtube.yaml
+#   http://127.0.0.1:18989/disney.yaml
+
+port: 7890
+socks-port: 7891
+mixed-port: 10801
+allow-lan: true
+mode: rule
+log-level: info
+
+proxies: []
+
+proxy-groups:
+  - name: 节点选择
+    type: select
+    proxies:
+      - 全部节点
+      - 高速节点
+      - ChatGPT
+      - YouTube
+      - Disney+
+      - DIRECT
+  - name: 全部节点
+    type: select
+    use:
+      - ProviderALL
+  - name: 高速节点
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    use:
+      - ProviderSpeed
+  - name: ChatGPT
+    type: select
+    use:
+      - ProviderOpenai
+  - name: YouTube
+    type: select
+    use:
+      - ProviderYoutube
+  - name: Disney+
+    type: select
+    use:
+      - ProviderDisney
+
+rules:
+  - DOMAIN-SUFFIX,openai.com,ChatGPT
+  - DOMAIN-SUFFIX,chatgpt.com,ChatGPT
+  - DOMAIN-SUFFIX,youtube.com,YouTube
+  - DOMAIN-SUFFIX,googlevideo.com,YouTube
+  - DOMAIN-SUFFIX,disneyplus.com,Disney+
+  - GEOIP,CN,DIRECT
+  - MATCH,节点选择

@@ -1,96 +1,105 @@
 # BestSub Usage Guide
 
 > ⚠️ **Important Notice**  
-> This project is under active development.  
-> Configuration files may change frequently.  
-> Please pay close attention to the documentation updates.
+> This project is under active development. Configuration files may change frequently.
 
 [中文文档](./README_zh.md) | English Documentation
 
+## Quick Deploy
+
+The `runtime/` directory provides a ready-to-use example:
+
+```bash
+cd runtime && ./start.sh
+```
+
+Results are served at `http://127.0.0.1:18989/` after each check completes.
+
 ## Direct Execution
 
-1. Select the appropriate file from the [releases](https://github.com/bestruirui/BestSub/releases) based on your system
-2. Download [config.example.yaml](https://raw.githubusercontent.com/bestruirui/BestSub/master/doc/config.example.yaml) and [rename.yaml](https://raw.githubusercontent.com/bestruirui/BestSub/master/doc/rename.yaml) to the `config` folder
-3. Refer to the [Configuration Documentation](./config.md) to modify the configuration file, then rename it to `config.yaml`
-4. Run the application
+1. Download the binary from [releases](https://github.com/bestruirui/BestSub/releases)
+2. Copy [config.example.yaml](./config.example.yaml) and [rename.yaml](./rename.yaml) into `config/`
+3. Edit `config.yaml` per the [Configuration Documentation](./config.md)
+4. Run `./BestSub`
 
 ## Docker
 
 ```bash
-mkdir -p /path/to/config
-```
-
-```bash
 docker run -itd \
     --name bestsub \
-    -p 8080:8080 \
+    -p 18989:18989 \
     -v /path/to/config:/app/config \
     -v /path/to/output:/app/output \
     --restart=always \
     ghcr.io/bestruirui/bestsub
 ```
 
-## Run from Source Code
+## Build from Source
 
 ```bash
+go build -o BestSub .
 go run main.go -f /path/to/config.yaml -r /path/to/rename.yaml
 ```
 
-## Custom Speed Test URL
+## HTTP Subscription Endpoints
 
-> (Optional) Since some nodes block common speed test URLs, you may need to create your own speed test URL
+| File | URL |
+|------|-----|
+| All nodes | `http://127.0.0.1:18989/all.yaml` |
+| Speed | `http://127.0.0.1:18989/speed.yaml` |
+| ChatGPT | `http://127.0.0.1:18989/openai.yaml` |
+| YouTube | `http://127.0.0.1:18989/youtube.yaml` |
+| Netflix | `http://127.0.0.1:18989/netflix.yaml` |
+| Disney+ | `http://127.0.0.1:18989/disney.yaml` |
 
-- Deploy the [worker](./cloudflare/worker.js) to Cloudflare Workers
+Adjust `check.min-speed` (KB/s) to control how many nodes qualify for `speed.yaml`.
 
-- Set `speed-test-url` to your worker URL
+## Mihomo Integration
 
-```yaml
-speed-test-url: https://your-worker-url/speedtest?bytes=1000000
-```
-
-## Save Method Configuration
-
-- 📁 Local Save: Save results locally, default location is the output folder in the executable directory
-- ☁️ R2: Save results to Cloudflare R2 bucket [Configuration Guide](./r2.md)
-- 💾 Gist: Save results to GitHub Gist [Configuration Guide](./gist.md)
-- 🌐 WebDAV: Save results to WebDAV server [Configuration Guide](./webdav.md)
-
-## Subscription Usage
-
-Recommended to run directly in tun mode
-
-My own Windows application for direct execution: [minihomo](https://github.com/bestruirui/minihomo)
-
-- Download [base.yaml](./doc/base.yaml)
-- Replace the corresponding links in the file with your own
-
-Example:
+Use [base.yaml](./base.yaml) and point providers to local BestSub URLs:
 
 ```yaml
 proxy-providers:
   ProviderALL:
-    url: https:// # Replace this with your own link
+    url: http://127.0.0.1:18989/all.yaml
     type: http
     interval: 600
     proxy: DIRECT
+    path: ./proxy_provider/ALL.yaml
     health-check:
       enable: true
-      url: http://www.google.com/generate_204
-      interval: 60
-    path: ./proxy_provider/ALL.yaml
+      url: http://www.gstatic.com/generate_204
+      interval: 300
 ```
 
-If using `local` save method:
+### Auto-Update
 
 ```yaml
-proxy-providers:
-  ProviderALL:
-    file: /path/to/all.yaml
-    type: file
+# BestSub config
+mihomo-api-url: "http://127.0.0.1:9090"
+mihomo-api-secret: ""
 ```
 
-## Automatic Subscription Update
+```yaml
+# Mihomo config
+external-controller: 127.0.0.1:9090
+```
 
-Implement automatic subscription update after detection
+BestSub will refresh Mihomo providers automatically after each detection run.
 
-Refer to the `mihomo` option in the [Configuration Documentation](./config.md) 
+## Save Methods
+
+- **local** — `output/` directory
+- **http** — HTTP server (port via `save.port`)
+- **r2** — [Cloudflare R2](./r2.md)
+- **gist** — [GitHub Gist](./gist.md)
+- **webdav** — WebDAV server
+
+## Custom Speed Test URL
+
+Deploy [worker.js](./cloudflare/worker.js) to Cloudflare Workers if nodes block default test URLs.
+
+```yaml
+speed-test-url:
+  - https://your-worker-url/speedtest?bytes=1000000
+```

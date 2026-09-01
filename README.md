@@ -26,45 +26,57 @@
 ## Features
 
 - ✅ Detect node availability and remove unavailable nodes
-- ✅ Custom platform unlocking detection
-    - openai
-    - youtube
-    - netflix
-    - disney
+- ✅ Custom platform unlocking detection (openai, youtube, netflix, disney)
 - ✅ Merge multiple subscriptions
 - ✅ Convert subscriptions to clash/mihomo format
-- ✅ Remove duplicate nodes
-- ✅ Rename nodes
-    - API naming
-    - Custom rule naming
-- ✅ Test node speed
-- ✅ Classify and save based on unlocking status
-- ✅ Automatically update subscriptions
+- ✅ Remove duplicate nodes and rename nodes
+- ✅ Test node speed and classify results
+- ✅ Auto-update Mihomo providers after each check
 
-## Characteristics
+## Quick Start
 
-- 🚀 Supports multiple platforms
-- ⚡ Supports multithreading
-- 🍃 Low resource consumption
+```text
+bestsub/
+├── config/
+│   ├── config.yaml
+│   └── rename.yaml
+├── BestSub
+└── output/
+```
 
-## TODO
+```bash
+# From source
+go build -o BestSub .
 
-- [x] Adapt to various subscription formats
-- [ ] Support more saving methods
-    - [x] Local
-    - [x] cloudflare r2
-    - [x] gist
-    - [x] webdav
-    - [x] http
-    - [ ] Others
-- [ ] Optimize node selection
+# Or use the example runtime directory
+cd runtime && ./start.sh
+```
 
-## Usage
+Configure `sub-urls` in `config/config.yaml`, then access results at:
 
-[Usage](./doc/README.md)
+- `http://127.0.0.1:18989/all.yaml` — all alive nodes
+- `http://127.0.0.1:18989/speed.yaml` — speed-qualified nodes
+- `http://127.0.0.1:18989/openai.yaml` — ChatGPT-unlocked nodes
 
+See [getsubs.md](./getsubs.md) (Chinese) for a full walkthrough.
 
-### Config Description
+## Mihomo Auto-Update
 
-[Config Description](./doc/config.md)
+```yaml
+# BestSub config
+mihomo-api-url: "http://127.0.0.1:9090"
+mihomo-api-secret: ""
+```
 
+```yaml
+# Mihomo config
+external-controller: 127.0.0.1:9090
+```
+
+Point `proxy-providers` in [base.yaml](./doc/base.yaml) to your local BestSub HTTP endpoints.
+
+## Documentation
+
+- [Usage Guide](./doc/README.md)
+- [Config Reference](./doc/config.md)
+- [中文文档](./README_zh.md)
